@@ -1,0 +1,24 @@
+{
+  "name": "ray-marching-maze",
+  "version": "1.0.0",
+  "description": "Ray Marching Maze with Three.js",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "three.js",
+    "ray-marching",
+    "webgl"
+  ],
+  "author": "Fabian Lander",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.160.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.17"
+  }
+}
