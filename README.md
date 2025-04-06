@@ -14,7 +14,7 @@ An interactive 3D maze visualized using ray marching techniques with Three.js an
 
 ## Live Demo
 
-Check out the live demo: [https://your-username.github.io/ray-marching-maze/](https://your-username.github.io/ray-marching-maze/)
+Check out the live demo: [under construction]
 
 ## Controls
 
@@ -34,7 +34,7 @@ Check out the live demo: [https://your-username.github.io/ray-marching-maze/](ht
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/your-username/ray-marching-maze.git
+   git clone https://github.com/FabianLander/RayMarchingFlatSurfaces.git
    cd ray-marching-maze
    ```
 
