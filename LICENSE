@@ -1,6 +1,11 @@
 MIT License
 
-Copyright (c) 2025 [Fabian Lander] [Mara-Eliana Popescu] [Diaaeldin Taha]
+Copyright (c) 2025 Fabian Lander
+
+This project is a refactored and improved version of the original work:
+https://github.com/hegl-lab/Independent-SS22-Raymarching-Flat-Surfaces
+
+Original work Copyright (c) 2025 Fabian Lander, Mara-Eliana Popescu, Diaaeldin Taha
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
