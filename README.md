@@ -1,16 +1,29 @@
-# Ray Marching Maze Demo
+# Ray Marching on Locally Flat Surfaces
 
-An interactive 3D maze visualized using ray marching techniques with Three.js and WebGL shaders.
+An interactive visualization of mathematical surfaces using ray marching techniques with Three.js and WebGL shaders. This project explores translation surfaces, mirror rooms, and cube surfaces through real-time ray marching algorithms.
 
-![Ray Marching Maze Demo](screenshot.png)
+![Ray Marching on locally flat surfaces](screenshot.png)
 
-## Features
+## Project History
 
-- First-person navigation through a 3D maze
-- Real-time ray marching rendering
-- Collision detection and response
-- Mouse look and keyboard movement controls
-- WebGL shader-based rendering
+This repository is a refactored and performance-optimized version of the [original Raymarching on Surfaces project](https://github.com/hegl-lab/Independent-SS22-Raymarching-Flat-Surfaces) from HEGL Lab. The original work was developed by Fabian Lander, Mara-Eliana Popescu, and Diaaeldin Taha.
+
+## Key Improvements
+
+- Enhanced accessibility features
+- Significantly improved performance
+- Modern build system with Vite
+- Responsive design for different screen sizes
+- Optimized collision detection and response
+- Improved navigation controls
+
+## Visualizations
+
+This project includes several mathematical visualizations:
+
+- **Translation Surfaces**: Explore geometric surfaces created by translating a curve along another curve
+- **Mirror Rooms**: Experience infinite reflections in a confined space
+- **Cube Surfaces**: Navigate the surface of a cube with continuous movement
 
 ## Live Demo
 
@@ -35,7 +48,7 @@ Check out the live demo: [under construction]
 1. Clone this repository:
    ```bash
    git clone https://github.com/FabianLander/RayMarchingFlatSurfaces.git
-   cd ray-marching-maze
+   cd RayMarchingFlatSurfaces
    ```
 
 2. Install dependencies:
@@ -69,7 +82,7 @@ To preview the production build locally:
 npm run preview
 ```
 
-## How It Works
+## Technical Implementation
 
 This project demonstrates ray marching, an advanced rendering technique that works by:
 
@@ -78,7 +91,12 @@ This project demonstrates ray marching, an advanced rendering technique that wor
 3. Marching along each ray until it hits an object or reaches its maximum distance
 4. Calculating lighting, colors, and effects based on the hit point
 
-The entire 3D maze is defined mathematically in the fragment shader, rather than with traditional polygon meshes.
+Key technical features include:
+
+- Custom JavaScript for keyboard and mouse input control
+- Ray marching algorithms implemented in GLSL fragment shaders
+- Real-time rendering of flat surfaces with dynamic camera perspectives
+- WebGL-based visualization using the THREE.js framework
 
 ## Technologies Used
 
@@ -87,11 +105,16 @@ The entire 3D maze is defined mathematically in the fragment shader, rather than
 - [Vite](https://vitejs.dev/) - Frontend build tool
 - GLSL - OpenGL Shading Language for writing shaders
 
+## Related Resources
+
+- Original project: [HEGL Lab Raymarching on Flat Surfaces](https://github.com/hegl-lab/Independent-SS22-Raymarching-Flat-Surfaces)
+- Interactive visualization: [HEGL Lab Web Interface](https://hegl.mathi.uni-heidelberg.de/galleries/online-apps/)
+
 ## License
 
-[MIT](LICENSE)
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
-- Inspired by various ray marching tutorials and demos
-- Built with Three.js and WebGL
+- Heidelberg Experimental Geometry Lab (HEGL) for the original project
+- Three.js and WebGL communities for their excellent documentation and examples
