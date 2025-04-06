@@ -1,72 +1,97 @@
-# Ray Marching
+# Ray Marching Maze Demo
 
-![Ray Marching Demo](screenshot.png)
+An interactive 3D maze visualized using ray marching techniques with Three.js and WebGL shaders.
 
-An interactive 3D visualization created using the ray marching technique with Three.js and WebGL shaders.
+![Ray Marching Maze Demo](screenshot.png)
 
-## [Live Demo](https://fabianlander.github.io/ray-marching)
+## Features
 
-## Description
+- First-person navigation through a 3D maze
+- Real-time ray marching rendering
+- Collision detection and response
+- Mouse look and keyboard movement controls
+- WebGL shader-based rendering
 
-This project demonstrates the ray marching rendering technique to create an explorable 3D environment. Unlike traditional polygon-based rendering, ray marching uses distance functions to create complex 3D geometries with relatively simple code.
+## Live Demo
 
-### Features
-
-- First-person navigation through a procedurally defined environment
-- Ray marching implementation in GLSL shaders
-- Real-time lighting and surface normal calculations
-- Physics-based collision detection and response
-- Efficient distance field representation of the environment
-
-## How to Run Locally
-
-```bash
-# Clone the repository
-git clone https://github.com/fabianlander/ray-marching.git
-cd ray-marching
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-```
+Check out the live demo: [https://your-username.github.io/ray-marching-maze/](https://your-username.github.io/ray-marching-maze/)
 
 ## Controls
 
-- **WASD** - Move around
+- **WASD** - Move forward/backward/left/right
 - **Mouse** - Look around
 - **Space/Shift** - Move up/down
-- **Click** to lock cursor and enable mouse controls
+- **Click** - Lock/unlock mouse cursor
 
-## Technical Implementation
+## Running Locally
 
-The project uses:
+### Prerequisites
 
-- **Three.js** for WebGL rendering and camera controls
-- **GLSL Shaders** for the ray marching implementation
-- **Vite** for building and development
-- **JavaScript** for user interaction
+- [Node.js](https://nodejs.org/) (v14 or newer)
+- npm (comes with Node.js)
 
-### Ray Marching Algorithm
+### Installation
 
-The core of this project is the ray marching algorithm implemented in the fragment shader. For each pixel:
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/your-username/ray-marching-maze.git
+   cd ray-marching-maze
+   ```
 
-1. A ray is cast from the camera position
-2. The ray steps forward in increments determined by the distance to the nearest object
-3. At each step, the distance to the nearest object is calculated
-4. The ray advances by this safe distance
-5. This continues until hitting an object or reaching a maximum distance
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-The fragment shader uses Signed Distance Functions (SDFs) to define the geometry.
+### Development
+
+Run the development server:
+
+```bash
+npm run dev
+```
+
+This will start a local development server at http://localhost:5173 (or another port if 5173 is already in use). The page will automatically reload when you make changes to the code.
+
+### Building for Production
+
+To build the project for production:
+
+```bash
+npm run build
+```
+
+This creates a `dist` folder with the compiled and optimized files ready for deployment.
+
+To preview the production build locally:
+
+```bash
+npm run preview
+```
+
+## How It Works
+
+This project demonstrates ray marching, an advanced rendering technique that works by:
+
+1. Sending rays from the camera through each pixel
+2. Using signed distance functions (SDFs) to define the geometry
+3. Marching along each ray until it hits an object or reaches its maximum distance
+4. Calculating lighting, colors, and effects based on the hit point
+
+The entire 3D maze is defined mathematically in the fragment shader, rather than with traditional polygon meshes.
+
+## Technologies Used
+
+- [Three.js](https://threejs.org/) - 3D JavaScript library
+- [WebGL](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API) - Web Graphics Library
+- [Vite](https://vitejs.dev/) - Frontend build tool
+- GLSL - OpenGL Shading Language for writing shaders
 
 ## License
 
-MIT
+[MIT](LICENSE)
 
-## Related Projects
+## Acknowledgments
 
-Check out my other WebGL experiments on my [portfolio website](https://fabianlander.com/projects).
+- Inspired by various ray marching tutorials and demos
+- Built with Three.js and WebGL
