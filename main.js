@@ -6,217 +6,11 @@ if (!window.WebGLRenderingContext) {
     document.getElementById('error').textContent = 'Your browser does not support WebGL';
 }
 
-// Ray marching vertex shader
-const vertexShaderSource = `
-void main() {
-    gl_Position = vec4(position, 1.0);
-}
-`;
-
-// Ray marching fragment shader
-const fragmentShaderSource = `
-#define M_PI 3.1415926535897932384626433832795
-
-uniform vec2 iResolution;
-uniform float iTime;
-uniform vec3 rayMarchCamPos;
-uniform vec3 rayMarchCamFront;
-uniform vec3 rayMarchCamUp;
-
-const float eps = 0.0001;
-float tMax = 50.;
-float b = 2.0;
-float wall_height = 2.;
-float dist_screen = 1.;
-float cam_detection_boundary = 100.;
-
-mat3 rotMat(vec3 axis, float angle) {
-    axis = normalize(axis);
-    float s = sin(angle);
-    float c = cos(angle);
-    float oc = 1.0 - c;
-    
-    return mat3(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,
-                oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,
-                oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c);
-}
-
-// signed distance functions
-float sdBox(vec3 p, vec3 b) {
-    vec3 q = abs(p) - b;
-    return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
-}
-
-float opSubtraction(float d1, float d2) {
-    return max(-d1,d2);
-}
-
-float opUnion(float d1, float d2) {
-    return min(d1, d2);
-}
-
-vec3 opRep(vec3 p, vec3 c) {
-    return mod(p + 0.5 * c, c) - 0.5 * c;
-}
-
-float sdCylinder(vec3 p, vec3 c) {
-    return length(p.xz-c.xy)-c.z;
-}
-
-float sdPlane(vec3 p, vec3 n, float h) {
-    return dot(p, n) + h;
-}
-
-float dot2(vec3 v) {
-    return dot(v, v);
-}
-
-float sdSphere(vec3 p, float r) {
-    return length(p) - r;
-}
-
-// object
-float sdf(vec3 p) {
-    float df = sdBox(p - vec3(0.,0.,2.*b + eps), vec3(b, wall_height, eps)); //Edge 6
-    df = opUnion(df, sdBox(p - vec3(-b-eps,0., b), vec3(eps, wall_height, 1.*b))); // Edge 8
-    df = opUnion(df, sdBox(p - vec3(-b-eps,0., -b), vec3(eps, wall_height, 1.*b))); // Edge 7 
-    df = opUnion(df, sdBox(p - vec3(b + eps, 0. ,b), vec3(eps, wall_height, b))); // Edge 5
-    df = opUnion(df, sdBox(p - vec3(2.*b, 0. ,0.+eps), vec3(b, wall_height, eps))); // Edge 4
-    df = opUnion(df, sdBox(p - vec3(3.*b+eps, 0., -b), vec3(eps, wall_height, b))); // Edge 3
-    df = opUnion(df, sdBox(p - vec3(2. * b, 0., -2.*b -eps), vec3(b, wall_height, eps))); // Edge 2
-    df = opUnion(df, sdBox(p - vec3(0., 0., -2.*b-eps), vec3(b, wall_height, eps))); // Edge 1
-    df = opUnion(df, sdSphere(p - vec3(1.* b, 0., -b), 0.1));
-    df = opUnion(df, opSubtraction(sdSphere(p, 0.13), sdBox(p, vec3(0.1))));
-    
-    // Adding cylinders at the 8 key vertices where walls meet
-    float cylinderRadius = 0.02;
-    float cylinderHeight = wall_height;
-    
-    // Vertex 1: Corner at (0, 0, -2*b)
-    vec3 v1 = vec3(0.0, 0.0, -2.0*b);
-    df = opUnion(df, max(sdCylinder(p - v1, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v1.y) - cylinderHeight));
-    
-    // Vertex 2: Corner at (2*b, 0, -2*b)
-    vec3 v2 = vec3(2.0*b, 0.0, -2.0*b);
-    df = opUnion(df, max(sdCylinder(p - v2, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v2.y) - cylinderHeight));
-    
-    // Vertex 3: Corner at (3*b, 0, -b)
-    vec3 v3 = vec3(3.0*b, 0.0, -b);
-    df = opUnion(df, max(sdCylinder(p - v3, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v3.y) - cylinderHeight));
-    
-    // Vertex 4: Corner at (2*b, 0, 0)
-    vec3 v4 = vec3(2.0*b, 0.0, 0.0);
-    df = opUnion(df, max(sdCylinder(p - v4, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v4.y) - cylinderHeight));
-    
-    // Vertex 5: Corner at (b, 0, 0)
-    vec3 v5 = vec3(b, 0.0, 0.0);
-    df = opUnion(df, max(sdCylinder(p - v5, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v5.y) - cylinderHeight));
-    
-    // Vertex 6: Corner at (b, 0, 2*b)
-    vec3 v6 = vec3(b, 0.0, 2.0*b);
-    df = opUnion(df, max(sdCylinder(p - v6, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v6.y) - cylinderHeight));
-    
-    // Vertex 7: Corner at (-b, 0, b)
-    vec3 v7 = vec3(-b, 0.0, b);
-    df = opUnion(df, max(sdCylinder(p - v7, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v7.y) - cylinderHeight));
-    
-    // Vertex 8: Corner at (-b, 0, -b)
-    vec3 v8 = vec3(-b, 0.0, -b);
-    df = opUnion(df, max(sdCylinder(p - v8, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v8.y) - cylinderHeight));
-
-    return df;
-}
-
-vec3 getNormal(vec3 p) {
-    const float eps = 0.0001;
-    const vec2 h = vec2(eps, 0.);
-    return normalize(vec3(sdf(p+h.xyy) - sdf(p-h.xyy),
-                          sdf(p+h.yxy) - sdf(p-h.yxy),
-                          sdf(p+h.yyx) - sdf(p-h.yyx)));
-}
-
-void main() {
-    // Set up camera basis vectors using the uniforms
-    vec3 cameraPos = rayMarchCamPos;
-    vec3 front = normalize(rayMarchCamFront);
-    vec3 right = normalize(cross(front, rayMarchCamUp));
-    vec3 up = cross(right, front);
-    
-    // Normalized device coordinates
-    vec2 uv = (gl_FragCoord.xy - 0.5 * iResolution) / min(iResolution.x, iResolution.y);
-    
-    // Ray direction with proper FOV (matching Three.js camera)
-    float fov = radians(75.0);
-    float tan_fov = tan(fov * 0.5);
-    vec3 ray = normalize(front + uv.x * right * tan_fov + uv.y * up * tan_fov);
-    
-    // ray marching
-    float t = 0.;
-    vec3 pos = cameraPos;
-    float collision_count = 0.;
-    
-    for(int i = 0; i < 2000; i++) {
-        float h = sdf(pos);
-
-        pos = pos + h * ray;
-        if(h < eps) {
-            if(sdBox(pos - vec3(0.,0.,2.*b+eps), vec3(b, wall_height, eps)) < eps) { //Edge 6
-                pos.z = -2. * b + 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos- vec3(2.*b, 0. ,0.+eps), vec3(b, wall_height, eps)) < eps) { //Edge 4
-                pos.z = -2. * b + 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos - vec3(0., 0., -2.*b - eps), vec3(b, wall_height, eps)) < eps) { //Edge 1
-                pos.z = 2. * b - 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos - vec3(2. * b, 0., -2.*b - eps), vec3(b, wall_height, eps)) < eps) { // Edge 2
-                pos.z = - 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos- vec3(3.*b + eps, 0., -b), vec3(eps, wall_height, b)) < eps) { //Edge 3
-                pos.x = -b + 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos- vec3(b + eps, 0. ,b), vec3(eps, wall_height, b)) < eps) { //Edge 5
-                pos.x = -b + 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos- vec3(-b-eps ,0., b), vec3(eps, wall_height, 1.*b)) < eps) { //Edge 7
-                pos.x = b - 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;
-            } else if(sdBox(pos- vec3(-b - eps ,0., -b), vec3(eps, wall_height, 1.*b)) < eps) { //Edge 8
-                pos.x = 3. * b - 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(t > tMax){ 
-                pos = vec3(tMax);
-                break;
-            }
-        }
-        t += h;
-        
-        // Exit loop if we've gone too far
-        if(t > tMax) break;
-    }
-
-    // color
-    vec3 color = vec3(1.);
-    if(t < tMax) {
-        vec3 normal = normalize(getNormal(pos));
-        color = normal * 0.5 + 0.5;
-    }
-
-    // adding collision fog
-    gl_FragColor = vec4(color, 1.0) - collision_count*vec4(0.01);
-}
-`;
-
 // Initialize scene with error handling
 try {
+    // Get the canvas container
+    const canvasContainer = document.querySelector('.canvas-container');
+    
     // Scene setup - we'll have two scenes
     // 1. The static scene for the quad with the shader
     const staticScene = new THREE.Scene();
@@ -229,8 +23,12 @@ try {
     
     // Set the clear color (will be visible around the quad)
     renderer.setClearColor(0x333333);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+    
+    // Set initial size to match container and append canvas to container
+    const initialWidth = canvasContainer.clientWidth;
+    const initialHeight = canvasContainer.clientHeight;
+    renderer.setSize(initialWidth, initialHeight);
+    canvasContainer.appendChild(renderer.domElement);
     
     // Set up two cameras:
     // 1. Static orthographic camera for rendering the quad with shader (never moves)
@@ -241,7 +39,7 @@ try {
     staticCamera.position.z = 1;
     
     // Dynamic camera - this is the one we'll move around with controls
-    const dynamicCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const dynamicCamera = new THREE.PerspectiveCamera(75, initialWidth / initialHeight, 0.1, 1000);
     const FOV = 75; // Store FOV value to match in shader
     dynamicCamera.position.set(0, 1, 0); // Starting position inside the maze
     
@@ -260,6 +58,11 @@ try {
     const movementSpeed = 3.0;
     const rotationSpeed = 0.002;
     const rotationQuaternion = new THREE.Quaternion();
+
+    // Constants for the maze dimensions
+    const b = 2.0;
+    const wall_height = 2.0;
+    const eps = 0.001;
     
     // Set up pointer lock controls
     const onMouseMove = (event) => {
@@ -288,8 +91,8 @@ try {
     
     document.addEventListener('mousemove', onMouseMove);
     
-    // Handle click to lock pointer
-    document.addEventListener('click', () => {
+    // Handle click to lock pointer - only when clicking on the canvas
+    renderer.domElement.addEventListener('click', () => {
         if (!isPointerLocked) {
             renderer.domElement.requestPointerLock();
         }
@@ -300,8 +103,10 @@ try {
         isPointerLocked = document.pointerLockElement === renderer.domElement;
     });
     
-    // Keyboard controls
+    // Keyboard controls - only active when pointer is locked
     document.addEventListener('keydown', (event) => {
+        if (!isPointerLocked) return;
+        
         switch (event.code) {
             case 'KeyW': moveForward = true; break;
             case 'KeyS': moveBackward = true; break;
@@ -323,18 +128,26 @@ try {
         }
     });
     
-    // Handle window resize
-    window.addEventListener('resize', () => {
-        // Update dynamic camera aspect ratio
-        dynamicCamera.aspect = window.innerWidth / window.innerHeight;
-        dynamicCamera.updateProjectionMatrix();
-        
-        // Resize renderer
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        
-        // Update shader resolution uniform
-        uniforms.iResolution.value.set(window.innerWidth, window.innerHeight);
+    // Create a ResizeObserver to watch for container size changes
+    const resizeObserver = new ResizeObserver((entries) => {
+        for (let entry of entries) {
+            const width = entry.contentRect.width;
+            const height = entry.contentRect.height;
+            
+            // Update camera aspect ratio
+            dynamicCamera.aspect = width / height;
+            dynamicCamera.updateProjectionMatrix();
+            
+            // Resize renderer
+            renderer.setSize(width, height);
+            
+            // Update shader resolution uniform
+            uniforms.iResolution.value.set(width, height);
+        }
     });
+    
+    // Start observing the container for resize events
+    resizeObserver.observe(canvasContainer);
     
     // Set up a full-screen quad for ray marching
     const geometry = new THREE.PlaneGeometry(2, 2);
@@ -342,26 +155,62 @@ try {
     // Create shader uniforms
     const uniforms = {
         iTime: { value: 0.0 },
-        iResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+        iResolution: { value: new THREE.Vector2(initialWidth, initialHeight) },
         rayMarchCamPos: { value: new THREE.Vector3() },
         rayMarchCamFront: { value: new THREE.Vector3() },
         rayMarchCamUp: { value: new THREE.Vector3(0, 1, 0) }
     };
     
+    // Simple vertex shader that won't change
+    const vertexShaderSource = `
+    void main() {
+        gl_Position = vec4(position, 1.0);
+    }
+    `;
+    
+    // Load only the fragment shader from external file
+    async function loadFragmentShader() {
+        try {
+            // Load fragment shader from shader/L.frag
+            const fragmentResponse = await fetch('shader/L.frag');
+            if (!fragmentResponse.ok) {
+                throw new Error(`Failed to load fragment shader: ${fragmentResponse.statusText}`);
+            }
+            const fragmentShaderSource = await fragmentResponse.text();
+            
+            // Create the shader material
+            return new THREE.ShaderMaterial({
+                uniforms: uniforms,
+                vertexShader: vertexShaderSource,
+                fragmentShader: fragmentShaderSource
+            });
+        } catch (error) {
+            console.error("Shader loading error:", error);
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = "Shader loading error: " + error.message;
+            throw error;
+        }
+    }
+    
     // Create the shader material with error catching
     let material;
     try {
-        material = new THREE.ShaderMaterial({
-            uniforms: uniforms,
-            vertexShader: vertexShaderSource,
-            fragmentShader: fragmentShaderSource
+        // We'll initialize with a placeholder and replace it when the shaders load
+        material = new THREE.MeshBasicMaterial({ color: 0x333333 });
+        
+        // Load only the fragment shader and update the material
+        loadFragmentShader().then(shaderMaterial => {
+            mesh.material = shaderMaterial;
+            console.log("Shader material created successfully");
+        }).catch(shaderError => {
+            console.error("Shader compilation error:", shaderError);
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = "Shader compilation error: " + shaderError.message;
         });
-        console.log("Shader material created successfully");
-    } catch (shaderError) {
-        console.error("Shader compilation error:", shaderError);
+    } catch (error) {
+        console.error("Material initialization error:", error);
         document.getElementById('error').style.display = 'block';
-        document.getElementById('error').textContent = "Shader compilation error: " + shaderError.message;
-        throw shaderError;
+        document.getElementById('error').textContent = "Material initialization error: " + error.message;
     }
     
     // Create the mesh and add it to the static scene
@@ -378,7 +227,121 @@ try {
     cameraInfoDiv.style.padding = '5px 10px';
     cameraInfoDiv.style.borderRadius = '5px';
     cameraInfoDiv.style.zIndex = '100';
-    document.body.appendChild(cameraInfoDiv);
+    canvasContainer.appendChild(cameraInfoDiv);
+    
+    // Add teleportation status indicator
+    const teleportStatusDiv = document.createElement('div');
+    teleportStatusDiv.style.position = 'absolute';
+    teleportStatusDiv.style.top = '10px';
+    teleportStatusDiv.style.right = '10px';
+    teleportStatusDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    teleportStatusDiv.style.color = 'white';
+    teleportStatusDiv.style.padding = '5px 10px';
+    teleportStatusDiv.style.borderRadius = '5px';
+    teleportStatusDiv.style.zIndex = '100';
+    teleportStatusDiv.textContent = 'Teleport: Ready';
+    canvasContainer.appendChild(teleportStatusDiv);
+    
+    // Handle fullscreen change
+    document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement === canvasContainer) {
+            // We've entered fullscreen, update size to match viewport
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            // Update camera aspect ratio
+            dynamicCamera.aspect = width / height;
+            dynamicCamera.updateProjectionMatrix();
+            
+            // Resize renderer
+            renderer.setSize(width, height);
+            
+            // Update shader resolution uniform
+            uniforms.iResolution.value.set(width, height);
+        } else {
+            // We've exited fullscreen, ResizeObserver will handle sizing back to container
+        }
+    });
+    
+    // Helper function to check if camera is within eps distance of a plane
+    function isNearPlane(pos, planePos, normal, eps) {
+        const diff = new THREE.Vector3().subVectors(pos, planePos);
+        return Math.abs(diff.dot(normal)) < eps;
+    }
+    
+    // Function to handle camera teleportation
+    function checkAndTeleportCamera(position) {
+        // Small buffer to prevent flickering at boundaries
+        const teleportEps = 0.1;
+        
+        // Height range for teleportation to occur
+        // Only teleport if camera is within -2 to 2 range
+        const minHeight = -2;
+        const maxHeight = 2;
+        const isInHeightRange = position.y >= minHeight && position.y <= maxHeight;
+        
+        // If not in height range, don't teleport
+        if (!isInHeightRange) {
+            return false;
+        }
+        
+        // Define teleportation boundaries and their corresponding destinations
+        // This matches the logic in the fragment shader
+        
+        // Edge 6: If near plane at (0, y, 2*b) with normal (0,0,1) -> teleport to (x, y, -2*b+2*eps)
+        if (Math.abs(position.z - (2.0 * b)) < teleportEps && position.x >= -b && position.x <= b) {
+            position.z = -2.0 * b + 2.0 * eps;
+            return true;
+        }
+        
+        // Edge 4: If near plane at (2*b, y, 0) with normal (0,0,1) -> teleport to (x, y, -2*b+2*eps)
+        if (Math.abs(position.z - 0) < teleportEps && position.x >= b && position.x <= 3.0 * b) {
+            position.z = -2.0 * b + 2.0 * eps;
+            return true;
+        }
+        
+        // Edge 1: If near plane at (0, y, -2*b) with normal (0,0,-1) -> teleport to (x, y, 2*b-2*eps)
+        if (Math.abs(position.z - (-2.0 * b)) < teleportEps && position.x >= -b && position.x <= b) {
+            position.z = 2.0 * b - 2.0 * eps;
+            return true;
+        }
+        
+        // Edge 2: If near plane at (2*b, y, -2*b) with normal (0,0,-1) -> teleport to (x, y, -2*eps)
+        if (Math.abs(position.z - (-2.0 * b)) < teleportEps && position.x >= b && position.x <= 3.0 * b) {
+            position.z = -2.0 * eps;
+            return true;
+        }
+        
+        // Edge 3: If near plane at (3*b, y, -b) with normal (1,0,0) -> teleport to (-b+2*eps, y, z)
+        if (Math.abs(position.x - (3.0 * b)) < teleportEps && position.z >= -2.0 * b && position.z <= 0) {
+            position.x = -b + 2.0 * eps;
+            return true;
+        }
+        
+        // Edge 5: If near plane at (b, y, b) with normal (1,0,0) -> teleport to (-b+2*eps, y, z)
+        if (Math.abs(position.x - b) < teleportEps && position.z >= 0 && position.z <= 2.0 * b) {
+            position.x = -b + 2.0 * eps;
+            return true;
+        }
+        
+        // Edge 7: If near plane at (-b, y, b) with normal (-1,0,0) -> teleport to (b-2*eps, y, z)
+        if (Math.abs(position.x - (-b)) < teleportEps && position.z >= 0 && position.z <= 2.0 * b) {
+            position.x = b - 2.0 * eps;
+            return true;
+        }
+        
+        // Edge 8: If near plane at (-b, y, -b) with normal (-1,0,0) -> teleport to (3*b-2*eps, y, z)
+        if (Math.abs(position.x - (-b)) < teleportEps && position.z >= -2.0 * b && position.z <= 0) {
+            position.x = 3.0 * b - 2.0 * eps;
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Variable to track when we last teleported (to prevent rapid teleports)
+    let lastTeleportTime = 0;
+    const teleportCooldown = 500; // milliseconds
     
     // Animation loop
     function animate() {
@@ -390,42 +353,68 @@ try {
         // Update uniforms for time
         uniforms.iTime.value += delta;
         
-        // Handle dynamic camera movement
-        velocity.set(0, 0, 0);
-        
-        // Handle movement with quaternion-based direction
-        if (moveForward) {
-            velocity.z = -movementSpeed * delta;
-            velocity.applyQuaternion(dynamicCamera.quaternion);
-            dynamicCamera.position.add(velocity);
-        }
-        
-        if (moveBackward) {
-            velocity.z = movementSpeed * delta;
-            velocity.applyQuaternion(dynamicCamera.quaternion);
-            dynamicCamera.position.add(velocity);
-        }
-        
-        if (moveLeft) {
-            velocity.x = -movementSpeed * delta;
-            velocity.applyQuaternion(dynamicCamera.quaternion);
-            dynamicCamera.position.add(velocity);
-        }
-        
-        if (moveRight) {
-            velocity.x = movementSpeed * delta;
-            velocity.applyQuaternion(dynamicCamera.quaternion);
-            dynamicCamera.position.add(velocity);
-        }
-        
-        if (moveUp) {
-            velocity.y = movementSpeed * delta;
-            dynamicCamera.position.add(velocity);
-        }
-        
-        if (moveDown) {
-            velocity.y = -movementSpeed * delta;
-            dynamicCamera.position.add(velocity);
+        // Only handle movement if pointer is locked
+        if (isPointerLocked) {
+            // Handle dynamic camera movement
+            velocity.set(0, 0, 0);
+            
+            // Handle movement with quaternion-based direction
+            if (moveForward) {
+                velocity.z = -movementSpeed * delta;
+                velocity.applyQuaternion(dynamicCamera.quaternion);
+                dynamicCamera.position.add(velocity);
+            }
+            
+            if (moveBackward) {
+                velocity.z = movementSpeed * delta;
+                velocity.applyQuaternion(dynamicCamera.quaternion);
+                dynamicCamera.position.add(velocity);
+            }
+            
+            if (moveLeft) {
+                velocity.x = -movementSpeed * delta;
+                velocity.applyQuaternion(dynamicCamera.quaternion);
+                dynamicCamera.position.add(velocity);
+            }
+            
+            if (moveRight) {
+                velocity.x = movementSpeed * delta;
+                velocity.applyQuaternion(dynamicCamera.quaternion);
+                dynamicCamera.position.add(velocity);
+            }
+            
+            if (moveUp) {
+                velocity.y = movementSpeed * delta;
+                dynamicCamera.position.add(velocity);
+            }
+            
+            if (moveDown) {
+                velocity.y = -movementSpeed * delta;
+                dynamicCamera.position.add(velocity);
+            }
+            
+            // Check if camera needs to be teleported and do teleportation
+            if (time - lastTeleportTime > teleportCooldown) {
+                if (checkAndTeleportCamera(dynamicCamera.position)) {
+                    lastTeleportTime = time;
+                    teleportStatusDiv.textContent = 'Teleport: Active';
+                    teleportStatusDiv.style.backgroundColor = 'rgba(0,255,0,0.7)';
+                    
+                    // Reset teleport status after a short delay
+                    setTimeout(() => {
+                        teleportStatusDiv.textContent = 'Teleport: Ready';
+                        teleportStatusDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
+                    }, 500);
+                } else if (dynamicCamera.position.y < -2 || dynamicCamera.position.y > 2) {
+                    // Update status to show we're out of teleport range
+                    teleportStatusDiv.textContent = 'Teleport: Out of Range';
+                    teleportStatusDiv.style.backgroundColor = 'rgba(255,0,0,0.7)';
+                } else {
+                    // Update status to show we're in teleport range but not near a portal
+                    teleportStatusDiv.textContent = 'Teleport: Ready';
+                    teleportStatusDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
+                }
+            }
         }
         
         // Update shader uniforms with the dynamic camera's position and orientation
@@ -446,8 +435,7 @@ try {
         
         // Update camera position and orientation indicator
         cameraInfoDiv.textContent = 
-            `Position: (${dynamicCamera.position.x.toFixed(1)}, ${dynamicCamera.position.y.toFixed(1)}, ${dynamicCamera.position.z.toFixed(1)})\n` +
-            `Quaternion: (${quaternion.x.toFixed(2)}, ${quaternion.y.toFixed(2)}, ${quaternion.z.toFixed(2)}, ${quaternion.w.toFixed(2)})`;
+            `Position: (${dynamicCamera.position.x.toFixed(1)}, ${dynamicCamera.position.y.toFixed(1)}, ${dynamicCamera.position.z.toFixed(1)})`;
         
         // Render using the static camera and the static scene
         renderer.render(staticScene, staticCamera);

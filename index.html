@@ -7,16 +7,37 @@
   <style>
     body {
       margin: 0;
-      overflow: hidden;
+      padding: 20px;
       background-color: #333;
       font-family: monospace;
       color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
+    
+    .canvas-container {
+      position: relative;
+      margin: 20px auto;
+      border: 2px solid #555;
+      border-radius: 5px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      resize: both; /* This makes the container resizable */
+      min-width: 320px;
+      min-height: 240px;
+      max-width: 90vw;
+      max-height: 80vh;
+      width: 320px;
+      height: 240px;
+    }
+    
     canvas {
       display: block;
       width: 100%;
       height: 100%;
     }
+    
     .info {
       position: absolute;
       top: 10px;
@@ -26,7 +47,9 @@
       padding: 10px;
       border-radius: 5px;
       z-index: 100;
+      font-size: 0.9em;
     }
+    
     #error {
       position: absolute;
       top: 50%;
@@ -39,16 +62,92 @@
       display: none;
       z-index: 100;
     }
+    
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    .control-btn {
+      background-color: #444;
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .control-btn:hover {
+      background-color: #555;
+    }
+    
+    .resolution-display {
+      margin-top: 5px;
+      font-size: 14px;
+      color: #ccc;
+    }
   </style>
 </head>
 <body>
-  <div class="info">
-    WASD - Move<br>
-    Mouse - Look<br>
-    Space/Shift - Up/Down<br>
-    Click to lock cursor
+  <h1>Ray Marching Maze Demo</h1>
+  
+  <h2>Ray Marching Renderer</h2>
+  <div class="resolution-display">Resolution: <span id="resolution">800×600</span></div>
+  
+  <div class="canvas-container">
+    <div class="info">
+      WASD - Move<br>
+      Mouse - Look<br>
+      Space/Shift - Up/Down<br>
+      Click on canvas to lock cursor
+    </div>
+    <div id="error"></div>
+    <!-- Canvas will be inserted here by Three.js -->
   </div>
-  <div id="error"></div>
+  
+  <div class="controls">
+    <button class="control-btn" id="fullscreen">Fullscreen</button>
+    <button class="control-btn" id="reset-size">Reset Size</button>
+  </div>
+  
   <script type="module" src="/main.js"></script>
+  
+  <script>
+    // Handle resolution display updates
+    const resolutionDisplay = document.getElementById('resolution');
+    const canvasContainer = document.querySelector('.canvas-container');
+    
+    // Update resolution text when container is resized
+    const resizeObserver = new ResizeObserver(entries => {
+      for (let entry of entries) {
+        const width = Math.floor(entry.contentRect.width);
+        const height = Math.floor(entry.contentRect.height);
+        resolutionDisplay.textContent = `${width}×${height}`;
+      }
+    });
+    
+    resizeObserver.observe(canvasContainer);
+    
+    // Fullscreen button
+    document.getElementById('fullscreen').addEventListener('click', () => {
+      if (canvasContainer.requestFullscreen) {
+        canvasContainer.requestFullscreen();
+      } else if (canvasContainer.webkitRequestFullscreen) {
+        canvasContainer.webkitRequestFullscreen();
+      } else if (canvasContainer.msRequestFullscreen) {
+        canvasContainer.msRequestFullscreen();
+      }
+    });
+    
+    // Reset size button
+    document.getElementById('reset-size').addEventListener('click', () => {
+      canvasContainer.style.width = '800px';
+      canvasContainer.style.height = '600px';
+    });
+  </script>
 </body>
 </html>
