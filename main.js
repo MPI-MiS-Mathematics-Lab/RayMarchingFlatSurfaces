@@ -8,8 +8,53 @@ if (!window.WebGLRenderingContext) {
 
 // Initialize scene with error handling
 try {
+    // Shader configurations for different surfaces
+    const shaderConfigs = {
+        'L': {
+            fragmentShader: 'shader/L.frag',
+            teleportConfig: {
+                // Default teleport config for L surface
+                b: 2.0,
+                wall_height: 2.0,
+                eps: 0.001
+            },
+            displayName: 'L Surface',
+            initialPosition: new THREE.Vector3(0, 1, 0)
+        },
+        'double_pentagon_mirror': {
+            fragmentShader: 'shader/double_pentagon_mirror.frag',
+            teleportConfig: {
+                // For pentagon, teleportation is handled in the shader,
+                // but we keep these values for consistency
+                b: 2.0,
+                wall_height: 5.0,
+                eps: 0.0001
+            },
+            displayName: 'Double Pentagon Mirror',
+            initialPosition: new THREE.Vector3(0, 1, 5)
+        },
+        'double_pentagon_translation': {
+            fragmentShader: 'shader/double_pentagon_translation.frag',
+            teleportConfig: {
+                // For pentagon translation
+                b: 2.0,
+                wall_height: 2.0,
+                eps: 0.0001
+            },
+            displayName: 'Double Pentagon Translation',
+            initialPosition: new THREE.Vector3(0, 1, 0)
+        }
+    };
+    
     // Get the canvas container
     const canvasContainer = document.querySelector('.canvas-container');
+    
+    // Get shader selector elements
+    const shaderSelect = document.getElementById('shader-select');
+    const currentShaderDisplay = document.getElementById('current-shader');
+    
+    // Track current shader
+    let currentShader = 'L';
     
     // Scene setup - we'll have two scenes
     // 1. The static scene for the quad with the shader
@@ -41,7 +86,7 @@ try {
     // Dynamic camera - this is the one we'll move around with controls
     const dynamicCamera = new THREE.PerspectiveCamera(75, initialWidth / initialHeight, 0.1, 1000);
     const FOV = 75; // Store FOV value to match in shader
-    dynamicCamera.position.set(0, 1, 0); // Starting position inside the maze
+    dynamicCamera.position.set(0, 1, 0); // Starting position inside the surface
     
     // Camera controls variables for the dynamic camera
     let moveForward = false;
@@ -59,11 +104,6 @@ try {
     const rotationSpeed = 0.002;
     const rotationQuaternion = new THREE.Quaternion();
 
-    // Constants for the maze dimensions
-    const b = 2.0;
-    const wall_height = 2.0;
-    const eps = 0.001;
-    
     // Set up pointer lock controls
     const onMouseMove = (event) => {
         if (!isPointerLocked) return;
@@ -152,7 +192,7 @@ try {
     // Set up a full-screen quad for ray marching
     const geometry = new THREE.PlaneGeometry(2, 2);
     
-    // Create shader uniforms
+    // Create shader uniforms - now we only need one set since we simplified the shaders
     const uniforms = {
         iTime: { value: 0.0 },
         iResolution: { value: new THREE.Vector2(initialWidth, initialHeight) },
@@ -168,22 +208,30 @@ try {
     }
     `;
     
-    // Load only the fragment shader from external file
-    async function loadFragmentShader() {
+    // Load and create shader material
+    async function loadShaderMaterial(shaderType) {
         try {
-            // Load fragment shader from shader/L.frag
-            const fragmentResponse = await fetch('shader/L.frag');
+            const config = shaderConfigs[shaderType];
+            if (!config) {
+                throw new Error(`Unknown shader type: ${shaderType}`);
+            }
+            
+            // Load fragment shader from file
+            const fragmentResponse = await fetch(config.fragmentShader);
             if (!fragmentResponse.ok) {
                 throw new Error(`Failed to load fragment shader: ${fragmentResponse.statusText}`);
             }
             const fragmentShaderSource = await fragmentResponse.text();
             
             // Create the shader material
-            return new THREE.ShaderMaterial({
-                uniforms: uniforms,
-                vertexShader: vertexShaderSource,
-                fragmentShader: fragmentShaderSource
-            });
+            return {
+                material: new THREE.ShaderMaterial({
+                    uniforms: uniforms,
+                    vertexShader: vertexShaderSource,
+                    fragmentShader: fragmentShaderSource
+                }),
+                config: config
+            };
         } catch (error) {
             console.error("Shader loading error:", error);
             document.getElementById('error').style.display = 'block';
@@ -192,30 +240,41 @@ try {
         }
     }
     
-    // Create the shader material with error catching
-    let material;
-    try {
-        // We'll initialize with a placeholder and replace it when the shaders load
-        material = new THREE.MeshBasicMaterial({ color: 0x333333 });
-        
-        // Load only the fragment shader and update the material
-        loadFragmentShader().then(shaderMaterial => {
-            mesh.material = shaderMaterial;
-            console.log("Shader material created successfully");
-        }).catch(shaderError => {
-            console.error("Shader compilation error:", shaderError);
+    // Create the mesh and add it to the static scene
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0x333333 }));
+    staticScene.add(mesh);
+    
+    // Function to change the current shader
+    async function changeShader(shaderType) {
+        try {
+            const { material, config } = await loadShaderMaterial(shaderType);
+            mesh.material = material;
+            currentShader = shaderType;
+            currentShaderDisplay.textContent = config.displayName;
+            
+            // Reset camera position to the recommended starting position for this shader
+            dynamicCamera.position.copy(config.initialPosition);
+            
+            // Reset camera rotation to look forward
+            dynamicCamera.quaternion.set(0, 0, 0, 1);
+            
+            // Update teleport configuration
+            b = config.teleportConfig.b;
+            wall_height = config.teleportConfig.wall_height;
+            eps = config.teleportConfig.eps;
+            
+            console.log(`Switched to ${config.displayName} shader`);
+        } catch (error) {
+            console.error("Error changing shader:", error);
             document.getElementById('error').style.display = 'block';
-            document.getElementById('error').textContent = "Shader compilation error: " + shaderError.message;
-        });
-    } catch (error) {
-        console.error("Material initialization error:", error);
-        document.getElementById('error').style.display = 'block';
-        document.getElementById('error').textContent = "Material initialization error: " + error.message;
+            document.getElementById('error').textContent = "Error changing shader: " + error.message;
+        }
     }
     
-    // Create the mesh and add it to the static scene
-    const mesh = new THREE.Mesh(geometry, material);
-    staticScene.add(mesh);
+    // Handle shader selection change
+    shaderSelect.addEventListener('change', (event) => {
+        changeShader(event.target.value);
+    });
     
     // Add dynamic camera position and orientation indicator
     const cameraInfoDiv = document.createElement('div');
@@ -258,26 +317,44 @@ try {
             
             // Update shader resolution uniform
             uniforms.iResolution.value.set(width, height);
-        } else {
-            // We've exited fullscreen, ResizeObserver will handle sizing back to container
         }
     });
     
-    // Helper function to check if camera is within eps distance of a plane
-    function isNearPlane(pos, planePos, normal, eps) {
-        const diff = new THREE.Vector3().subVectors(pos, planePos);
-        return Math.abs(diff.dot(normal)) < eps;
+    // Set initial shader configuration values
+    let { b, wall_height, eps } = shaderConfigs[currentShader].teleportConfig;
+    
+    // Helper function to check if a point is near a wall
+    function isNearWall(position, wallStart, wallEnd, threshold) {
+        // Vector from start to end of wall
+        const wallVector = wallEnd.clone().sub(wallStart);
+        const wallLength = wallVector.length();
+        const wallDir = wallVector.clone().divideScalar(wallLength);
+        
+        // Vector from wall start to position
+        const posVector = position.clone().sub(wallStart);
+        
+        // Project position onto wall line
+        const projection = posVector.dot(wallDir);
+        
+        // Check if projection is within wall segment
+        if (projection < 0 || projection > wallLength) {
+            return false;
+        }
+        
+        // Calculate distance from position to wall line
+        const projectedPoint = wallStart.clone().add(wallDir.multiplyScalar(projection));
+        const distance = position.clone().sub(projectedPoint).length();
+        
+        return distance < threshold;
     }
     
-    // Function to handle camera teleportation
-    function checkAndTeleportCamera(position) {
-        // Small buffer to prevent flickering at boundaries
-        const teleportEps = 0.1;
+    // Function to check and teleport camera for the double pentagon translation surface
+    function checkAndTeleportPentagonCamera(position) {
+        const teleportEps = 0.1; // Small buffer to prevent flickering at boundaries
         
         // Height range for teleportation to occur
-        // Only teleport if camera is within -2 to 2 range
-        const minHeight = -2;
-        const maxHeight = 2;
+        const minHeight = -wall_height;
+        const maxHeight = wall_height;
         const isInHeightRange = position.y >= minHeight && position.y <= maxHeight;
         
         // If not in height range, don't teleport
@@ -285,9 +362,110 @@ try {
             return false;
         }
         
-        // Define teleportation boundaries and their corresponding destinations
-        // This matches the logic in the fragment shader
+        // Define pentagon vertices (from the shader)
+        const rightPentagon = [
+            new THREE.Vector3(3.61803399, 0, 0.00000000),
+            new THREE.Vector3(2.23606798, 0, 1.90211303),
+            new THREE.Vector3(0, 0, 1.17557050),
+            new THREE.Vector3(0, 0, -1.17557050),
+            new THREE.Vector3(2.23606798, 0, -1.90211303)
+        ];
         
+        const leftPentagon = [
+            new THREE.Vector3(-2.23606798, 0, -1.90211303),
+            new THREE.Vector3(-0.00000000, 0, -1.17557050),
+            new THREE.Vector3(-0.00000000, 0, 1.17557050),
+            new THREE.Vector3(-2.23606798, 0, 1.90211303),
+            new THREE.Vector3(-3.61803399, 0, 0.00000000)
+        ];
+        
+        // Translation vectors (paired with each wall)
+        const translationVectors = [
+            new THREE.Vector3(-5.85410197, 0, -1.90211303), // d
+            new THREE.Vector3(-2.23606798, 0, -3.07768354), // c
+            new THREE.Vector3(-2.23606798, 0, 3.07768354),  // b
+            new THREE.Vector3(-5.85410197, 0, 1.90211303),  // a
+        ];
+        
+        // Check if near any wall in the right pentagon and teleport if so
+        // Wall d (right)
+        if (isNearWall(position, rightPentagon[0], rightPentagon[1], teleportEps)) {
+            position.add(translationVectors[0].clone().multiplyScalar(1 - 3 * eps));
+            return true;
+        }
+        
+        // Wall d (left)
+        if (isNearWall(position, leftPentagon[0], leftPentagon[4], teleportEps)) {
+            position.add(translationVectors[0].clone().multiplyScalar(-1 * (1 - 3 * eps)));
+            return true;
+        }
+        
+        // Wall c (right)
+        if (isNearWall(position, rightPentagon[1], rightPentagon[2], teleportEps)) {
+            position.add(translationVectors[1].clone().multiplyScalar(1 - 3 * eps));
+            return true;
+        }
+        
+        // Wall c (left)
+        if (isNearWall(position, leftPentagon[0], leftPentagon[1], teleportEps)) {
+            position.add(translationVectors[1].clone().multiplyScalar(-1 * (1 - 3 * eps)));
+            return true;
+        }
+        
+        // Wall b (right)
+        if (isNearWall(position, rightPentagon[3], rightPentagon[4], teleportEps)) {
+            position.add(translationVectors[2].clone().multiplyScalar(1 - 3 * eps));
+            return true;
+        }
+        
+        // Wall b (left)
+        if (isNearWall(position, leftPentagon[2], leftPentagon[3], teleportEps)) {
+            position.add(translationVectors[2].clone().multiplyScalar(-1 * (1 - 3 * eps)));
+            return true;
+        }
+        
+        // Wall a (left)
+        if (isNearWall(position, rightPentagon[0], rightPentagon[4], teleportEps)) {
+            position.add(translationVectors[3].clone().multiplyScalar(1 - 3 * eps));
+            return true;
+        }
+        
+        // Wall a (right)
+        if (isNearWall(position, leftPentagon[3], leftPentagon[4], teleportEps)) {
+            position.add(translationVectors[3].clone().multiplyScalar(-1 * (1 - 3 * eps)));
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Generic teleportation function that works for both L and pentagon
+    function checkAndTeleportCamera(position) {
+        // Return false if not in teleport mode or if using pentagon mirror shader
+        if (currentShader === 'double_pentagon_mirror') {
+            // For pentagon mirror, we don't use our custom teleport logic
+            // The shader handles the teleportation internally
+            return false;
+        } else if (currentShader === 'double_pentagon_translation') {
+            // For pentagon translation, use the specific teleport function
+            return checkAndTeleportPentagonCamera(position);
+        }
+        
+        // Small buffer to prevent flickering at boundaries
+        const teleportEps = 0.1;
+        
+        // Height range for teleportation to occur
+        // Only teleport if camera is within -2 to 2 range for L surface
+        const minHeight = -wall_height;
+        const maxHeight = wall_height;
+        const isInHeightRange = position.y >= minHeight && position.y <= maxHeight;
+        
+        // If not in height range, don't teleport
+        if (!isInHeightRange) {
+            return false;
+        }
+        
+        // L surface teleportation logic
         // Edge 6: If near plane at (0, y, 2*b) with normal (0,0,1) -> teleport to (x, y, -2*b+2*eps)
         if (Math.abs(position.z - (2.0 * b)) < teleportEps && position.x >= -b && position.x <= b) {
             position.z = -2.0 * b + 2.0 * eps;
@@ -350,7 +528,7 @@ try {
         const delta = (time - prevTime) / 1000;
         prevTime = time;
         
-        // Update uniforms for time
+        // Update time uniform
         uniforms.iTime.value += delta;
         
         // Only handle movement if pointer is locked
@@ -393,7 +571,7 @@ try {
                 dynamicCamera.position.add(velocity);
             }
             
-            // Check if camera needs to be teleported and do teleportation
+            // Check if camera needs to be teleported and do teleportation based on current shader
             if (time - lastTeleportTime > teleportCooldown) {
                 if (checkAndTeleportCamera(dynamicCamera.position)) {
                     lastTeleportTime = time;
@@ -405,7 +583,7 @@ try {
                         teleportStatusDiv.textContent = 'Teleport: Ready';
                         teleportStatusDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
                     }, 500);
-                } else if (dynamicCamera.position.y < -2 || dynamicCamera.position.y > 2) {
+                } else if (dynamicCamera.position.y < -wall_height || dynamicCamera.position.y > wall_height) {
                     // Update status to show we're out of teleport range
                     teleportStatusDiv.textContent = 'Teleport: Out of Range';
                     teleportStatusDiv.style.backgroundColor = 'rgba(255,0,0,0.7)';
@@ -417,7 +595,7 @@ try {
             }
         }
         
-        // Update shader uniforms with the dynamic camera's position and orientation
+        // Update common shader uniforms with the dynamic camera's position and orientation
         uniforms.rayMarchCamPos.value.copy(dynamicCamera.position);
         
         // Calculate camera front vector from quaternion
@@ -430,10 +608,7 @@ try {
         cameraUp.applyQuaternion(dynamicCamera.quaternion);
         uniforms.rayMarchCamUp.value.copy(cameraUp);
         
-        // Get quaternion components for display
-        const quaternion = dynamicCamera.quaternion;
-        
-        // Update camera position and orientation indicator
+        // Update camera position indicator
         cameraInfoDiv.textContent = 
             `Position: (${dynamicCamera.position.x.toFixed(1)}, ${dynamicCamera.position.y.toFixed(1)}, ${dynamicCamera.position.z.toFixed(1)})`;
         
@@ -441,9 +616,14 @@ try {
         renderer.render(staticScene, staticCamera);
     }
     
-    // Start animation
-    animate();
-    console.log("Animation loop started");
+    // Start by loading the initial shader (L by default)
+    changeShader(currentShader).then(() => {
+        // Start animation
+        animate();
+        console.log("Animation loop started");
+    }).catch(error => {
+        console.error("Failed to load initial shader:", error);
+    });
     
 } catch (error) {
     // Display any errors

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ray Marching</title>
+  <title>Ray Marching on Locally Flat Surfaces</title>
   <style>
     body {
       margin: 0;
@@ -90,10 +90,43 @@
       font-size: 14px;
       color: #ccc;
     }
+    
+    .shader-selector {
+      margin: 15px 0;
+      padding: 10px;
+      background-color: #444;
+      border-radius: 5px;
+    }
+    
+    select {
+      padding: 8px;
+      background-color: #555;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-family: monospace;
+      cursor: pointer;
+    }
+    
+    .current-shader {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #ccc;
+    }
   </style>
 </head>
 <body>
-  <h1>Ray Marching Maze Demo</h1>
+  <h1>Ray Marching on Locally Flat Surfaces</h1>
+  
+  <div class="shader-selector">
+    <label for="shader-select">Select Surface: </label>
+    <select id="shader-select">
+      <option value="L">L Surface</option>
+      <option value="double_pentagon_mirror">Double Pentagon Mirror</option>
+      <option value="double_pentagon_translation">Double Pentagon Translation</option>
+    </select>
+    <div class="current-shader">Current: <span id="current-shader">L Surface</span></div>
+  </div>
   
   <h2>Ray Marching Renderer</h2>
   <div class="resolution-display">Resolution: <span id="resolution">800×600</span></div>

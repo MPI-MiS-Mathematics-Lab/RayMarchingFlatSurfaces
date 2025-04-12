@@ -6,13 +6,50 @@ uniform vec3 rayMarchCamPos;
 uniform vec3 rayMarchCamFront;
 uniform vec3 rayMarchCamUp;
 
+// Basic constants
 const float eps = 0.0001;
 float tMax = 50.;
-float b = 2.0;
+const float b = 2.0; // Make b a constant
 float wall_height = 2.;
 float dist_screen = 1.;
 float cam_detection_boundary = 100.;
 
+// Polygon definition for the L-shape room (in XZ plane)
+const int NUM_VERTICES = 8;
+
+// L-shape polygon vertices (clockwise order)
+// These define the walkable area of the room
+const vec2 polygonVertices[NUM_VERTICES] = vec2[NUM_VERTICES](
+    vec2(2.0, 4.0),     // v8: (2, 4) - Use actual values instead of b
+    vec2(-2.0, 4.0),    // v7: (-2, 4)
+    vec2(-2.0, 0.0),    // v6: (-2, 0) - Added missing vertex
+    vec2(-2.0, -4.0),   // v5: (-2, -4)
+    vec2(2.0, -4.0),    // v4: (2, -4)
+    vec2(6.0, -4.0),    // v3: (6, -4)
+    vec2(6.0, 0.0),     // v2: (6, 0)
+    vec2(2.0, 0.0)      // v1: (2, 0)
+);
+
+// Translation vectors to apply when hitting each edge
+// Edge i is from vertex i to vertex (i+1)%NUM_VERTICES
+const vec3 edgeTranslations[NUM_VERTICES] = vec3[NUM_VERTICES](
+    vec3(0.0, 0.0, -8.0 + 2.0*eps),   // Edge 0: v8-v7 (top horizontal) → teleport to bottom
+    vec3(0.0, 0.0, -8.0 + 2.0*eps),   // Edge 1: v7-v6 (left upper vertical) → teleport to bottom
+    vec3(6.0 - 2.0*eps, 0.0, 0.0),    // Edge 2: v6-v5 (left lower vertical) → teleport to right
+    vec3(0.0, 0.0, 8.0 - 2.0*eps),    // Edge 3: v5-v4 (bottom left) → teleport to top
+    vec3(0.0, 0.0, -2.0*eps),         // Edge 4: v4-v3 (bottom right) → teleport up in Z
+    vec3(-8.0 + 2.0*eps, 0.0, 0.0),   // Edge 5: v3-v2 (right vertical) → teleport to left
+    vec3(0.0, 0.0, -8.0 + 2.0*eps),   // Edge 6: v2-v1 (middle horizontal) → teleport to bottom
+    vec3(0.0, 0.0, -8.0 + 2.0*eps)    // Edge 7: v1-v8 (inner vertical) → teleport to bottom
+);
+
+// SDF result structure with edge information
+struct EdgeSDF {
+    float distance;
+    int edgeIndex;
+};
+
+// ============= Rotation and Utility Functions =============
 mat3 rotMat(vec3 axis, float angle) {
     axis = normalize(axis);
     float s = sin(angle);
@@ -24,7 +61,7 @@ mat3 rotMat(vec3 axis, float angle) {
                 oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c);
 }
 
-// signed distance functions
+// ============= Standard Signed Distance Functions =============
 float sdBox(vec3 p, vec3 b) {
     vec3 q = abs(p) - b;
     return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
@@ -58,7 +95,91 @@ float sdSphere(vec3 p, float r) {
     return length(p) - r;
 }
 
-// object
+// ============= 2D Polygon SDF Functions =============
+// Distance from point to line segment in 2D
+float distToLineSegment(vec2 p, vec2 a, vec2 b) {
+    vec2 pa = p - a;
+    vec2 ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h);
+}
+
+// Helper function: determines if a point is left of a line
+float isLeft(vec2 a, vec2 b, vec2 p) {
+    return (b.x - a.x) * (p.y - a.y) - (p.x - a.x) * (b.y - a.y);
+}
+
+// Check if point is inside polygon using winding number algorithm
+float isInside(vec2 p, vec2 polygon[NUM_VERTICES]) {
+    float winding = 0.0;
+    
+    for (int i = 0; i < NUM_VERTICES; i++) {
+        vec2 v1 = polygon[i];
+        vec2 v2 = polygon[(i + 1) % NUM_VERTICES];
+        
+        if (v1.y <= p.y) {
+            if (v2.y > p.y && isLeft(v1, v2, p) > 0.0)
+                winding += 1.0;
+        } else {
+            if (v2.y <= p.y && isLeft(v1, v2, p) < 0.0)
+                winding -= 1.0;
+        }
+    }
+    
+    return abs(winding) > 0.0 ? 1.0 : 0.0;
+}
+
+// Calculate the polygon SDF for any polygon defined by global vertices
+EdgeSDF polygonSDF(vec2 p) {
+    EdgeSDF result;
+    result.distance = 1000000.0;
+    result.edgeIndex = -1;
+    
+    // Find closest edge
+    for (int i = 0; i < NUM_VERTICES; i++) {
+        vec2 v1 = polygonVertices[i];
+        vec2 v2 = polygonVertices[(i + 1) % NUM_VERTICES];
+        
+        float d = distToLineSegment(p, v1, v2);
+        if (d < result.distance) {
+            result.distance = d;
+            result.edgeIndex = i;
+        }
+    }
+    
+    // Determine if inside or outside
+    float inside = isInside(p, polygonVertices);
+    
+    // Apply sign (negative inside, positive outside)
+    result.distance = mix(result.distance, -result.distance, inside);
+    
+    return result;
+}
+
+// Apply translation based on which edge was hit
+vec3 applyTranslation(vec3 pos, int edgeIndex) {
+    if (edgeIndex >= 0 && edgeIndex < NUM_VERTICES) {
+        // Create new position to hold the result
+        vec3 translatedPos = pos;
+        
+        // Get the translation vector for this edge
+        vec3 translation = edgeTranslations[edgeIndex];
+        
+        // Apply non-zero components of the translation vector
+        // This allows partial translations (only in specific axes)
+        if (translation.x != 0.0) translatedPos.x = translation.x;
+        if (translation.y != 0.0) translatedPos.y = translation.y;
+        if (translation.z != 0.0) translatedPos.z = translation.z;
+        
+        return translatedPos;
+    }
+    
+    // If invalid edge index, return original position
+    return pos;
+}
+
+// ============= 3D Scene Definition =============
+// Main scene SDF function
 float sdf(vec3 p) {
     float df = sdBox(p - vec3(0.,0.,2.*b + eps), vec3(b, wall_height, eps)); //Edge 6
     df = opUnion(df, sdBox(p - vec3(-b-eps,0., b), vec3(eps, wall_height, 1.*b))); // Edge 8
@@ -129,45 +250,30 @@ void main() {
     for(int i = 0; i < 2000; i++) {
         float h = sdf(pos);
 
-        pos = pos + h * ray;
         if(h < eps) {
-            if(sdBox(pos - vec3(0.,0.,2.*b+eps), vec3(b, wall_height, eps)) < eps) { //Edge 6
-                pos.z = -2. * b + 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos- vec3(2.*b, 0. ,0.+eps), vec3(b, wall_height, eps)) < eps) { //Edge 4
-                pos.z = -2. * b + 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos - vec3(0., 0., -2.*b - eps), vec3(b, wall_height, eps)) < eps) { //Edge 1
-                pos.z = 2. * b - 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos - vec3(2. * b, 0., -2.*b - eps), vec3(b, wall_height, eps)) < eps) { // Edge 2
-                pos.z = - 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos- vec3(3.*b + eps, 0., -b), vec3(eps, wall_height, b)) < eps) { //Edge 3
-                pos.x = -b + 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos- vec3(b + eps, 0. ,b), vec3(eps, wall_height, b)) < eps) { //Edge 5
-                pos.x = -b + 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(sdBox(pos- vec3(-b-eps ,0., b), vec3(eps, wall_height, 1.*b)) < eps) { //Edge 7
-                pos.x = b - 2.*eps;
-                pos += h * ray;
+            // We hit something - check if it's a wall
+            // Extract only the XZ coordinates for the 2D polygon test
+            vec2 pos2D = pos.xz;
+            
+            // Calculate the SDF and get the closest edge
+            EdgeSDF edgeSdf = polygonSDF(pos2D);
+            
+            // If we're very close to an edge, we should translate
+            // This threshold determines how close we need to be to an edge
+            // before we trigger a translation
+            float edgeThreshold = 0.1;
+            
+            if (abs(edgeSdf.distance) < edgeThreshold) {
+                // Apply translation based on which edge we hit
+                pos = applyTranslation(pos, edgeSdf.edgeIndex);
                 collision_count += 1.;
-            } else if(sdBox(pos- vec3(-b - eps ,0., -b), vec3(eps, wall_height, 1.*b)) < eps) { //Edge 8
-                pos.x = 3. * b - 2.*eps;
-                pos += h * ray;
-                collision_count += 1.;            
-            } else if(t > tMax){ 
-                pos = vec3(tMax);
+            } else {
+                // Not a wall edge or too far from edge, exit the loop
                 break;
             }
         }
+        
+        pos = pos + h * ray;
         t += h;
         
         // Exit loop if we've gone too far

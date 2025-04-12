@@ -1,7 +1,7 @@
 {
-  "name": "ray-marching-maze",
+  "name": "ray-marching-flat-surfaces",
   "version": "1.0.0",
-  "description": "Ray Marching Maze with Three.js",
+  "description": "Ray Marching on Locally Flat Surfaces with Three.js",
   "main": "main.js",
   "scripts": {
     "dev": "vite",
