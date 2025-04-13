@@ -19,7 +19,7 @@ try {
                 eps: 0.001
             },
             displayName: 'L Surface',
-            initialPosition: new THREE.Vector3(0, 1, 0)
+            initialPosition: new THREE.Vector3(0, 0, 0)
         },
         'double_pentagon_mirror': {
             fragmentShader: 'shader/double_pentagon_mirror.frag',
@@ -31,7 +31,7 @@ try {
                 eps: 0.0001
             },
             displayName: 'Double Pentagon Mirror',
-            initialPosition: new THREE.Vector3(0, 1, 5)
+            initialPosition: new THREE.Vector3(0, 0, 5)
         },
         'double_pentagon_translation': {
             fragmentShader: 'shader/double_pentagon_translation.frag',
@@ -42,7 +42,7 @@ try {
                 eps: 0.0001
             },
             displayName: 'Double Pentagon Translation',
-            initialPosition: new THREE.Vector3(0, 1, 0)
+            initialPosition: new THREE.Vector3(0, 0, 0)
         }
     };
     
@@ -86,7 +86,12 @@ try {
     // Dynamic camera - this is the one we'll move around with controls
     const dynamicCamera = new THREE.PerspectiveCamera(75, initialWidth / initialHeight, 0.1, 1000);
     const FOV = 75; // Store FOV value to match in shader
-    dynamicCamera.position.set(0, 1, 0); // Starting position inside the surface
+    dynamicCamera.position.set(0, 0, 0); // Starting position
+    
+    // Camera height settings
+    const MIN_HEIGHT = 0; // Minimum height (walking on ground)
+    const DEFAULT_HEIGHT = 1.7; // Default eye height (standing human)
+    let currentHeight = DEFAULT_HEIGHT; // Current eye height
     
     // Camera controls variables for the dynamic camera
     let moveForward = false;
@@ -95,12 +100,14 @@ try {
     let moveRight = false;
     let moveUp = false;
     let moveDown = false;
+    let shiftPressed = false; // Track if shift is pressed
     let velocity = new THREE.Vector3();
     let prevTime = performance.now();
     let isPointerLocked = false;
     
     // Movement speed and rotation variables
     const movementSpeed = 3.0;
+    const verticalSpeed = 1.5; // Speed for up/down movement
     const rotationSpeed = 0.002;
     const rotationQuaternion = new THREE.Quaternion();
 
@@ -152,8 +159,12 @@ try {
             case 'KeyS': moveBackward = true; break;
             case 'KeyA': moveLeft = true; break;
             case 'KeyD': moveRight = true; break;
-            case 'Space': moveUp = true; break;
-            case 'ShiftLeft': moveDown = true; break;
+            case 'KeyE': moveUp = true; break;    // Changed from Space to E
+            case 'KeyQ': moveDown = true; break;  // Changed from Shift+Space to Q
+            case 'ShiftLeft': 
+            case 'ShiftRight': 
+                shiftPressed = true; 
+                break;
         }
     });
     
@@ -163,8 +174,12 @@ try {
             case 'KeyS': moveBackward = false; break;
             case 'KeyA': moveLeft = false; break;
             case 'KeyD': moveRight = false; break;
-            case 'Space': moveUp = false; break;
-            case 'ShiftLeft': moveDown = false; break;
+            case 'KeyE': moveUp = false; break;    // Changed from Space to E
+            case 'KeyQ': moveDown = false; break;  // Changed from Shift+Space to Q
+            case 'ShiftLeft': 
+            case 'ShiftRight': 
+                shiftPressed = false; 
+                break;
         }
     });
     
@@ -253,10 +268,15 @@ try {
             currentShaderDisplay.textContent = config.displayName;
             
             // Reset camera position to the recommended starting position for this shader
-            dynamicCamera.position.copy(config.initialPosition);
+            const startPos = config.initialPosition.clone();
+            startPos.y = 0; // Start at ground level
+            dynamicCamera.position.copy(startPos);
             
             // Reset camera rotation to look forward
             dynamicCamera.quaternion.set(0, 0, 0, 1);
+            
+            // Reset height to default
+            currentHeight = DEFAULT_HEIGHT;
             
             // Update teleport configuration
             b = config.teleportConfig.b;
@@ -300,6 +320,19 @@ try {
     teleportStatusDiv.style.zIndex = '100';
     teleportStatusDiv.textContent = 'Teleport: Ready';
     canvasContainer.appendChild(teleportStatusDiv);
+    
+    // Add height indicator
+    const heightInfoDiv = document.createElement('div');
+    heightInfoDiv.style.position = 'absolute';
+    heightInfoDiv.style.bottom = '10px';
+    heightInfoDiv.style.right = '10px';
+    heightInfoDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    heightInfoDiv.style.color = 'white';
+    heightInfoDiv.style.padding = '5px 10px';
+    heightInfoDiv.style.borderRadius = '5px';
+    heightInfoDiv.style.zIndex = '100';
+    heightInfoDiv.textContent = `Height: ${DEFAULT_HEIGHT.toFixed(1)}`;
+    canvasContainer.appendChild(heightInfoDiv);
     
     // Handle fullscreen change
     document.addEventListener('fullscreenchange', () => {
@@ -352,17 +385,9 @@ try {
     function checkAndTeleportPentagonCamera(position) {
         const teleportEps = 0.1; // Small buffer to prevent flickering at boundaries
         
-        // Height range for teleportation to occur
-        const minHeight = -wall_height;
-        const maxHeight = wall_height;
-        const isInHeightRange = position.y >= minHeight && position.y <= maxHeight;
+        // Since we're walking on the zero plane, we're always in the teleport height range
         
-        // If not in height range, don't teleport
-        if (!isInHeightRange) {
-            return false;
-        }
-        
-        // Define pentagon vertices (from the shader)
+        // Define pentagon vertices (from the shader) - all on the y=0 plane
         const rightPentagon = [
             new THREE.Vector3(3.61803399, 0, 0.00000000),
             new THREE.Vector3(2.23606798, 0, 1.90211303),
@@ -439,6 +464,11 @@ try {
         return false;
     }
     
+    // Function to check if camera height is within valid teleport range
+    function isHeightInTeleportRange(height) {
+        return height <= wall_height && height >= -wall_height;
+    }
+    
     // Generic teleportation function that works for both L and pentagon
     function checkAndTeleportCamera(position) {
         // Return false if not in teleport mode or if using pentagon mirror shader
@@ -453,17 +483,6 @@ try {
         
         // Small buffer to prevent flickering at boundaries
         const teleportEps = 0.1;
-        
-        // Height range for teleportation to occur
-        // Only teleport if camera is within -2 to 2 range for L surface
-        const minHeight = -wall_height;
-        const maxHeight = wall_height;
-        const isInHeightRange = position.y >= minHeight && position.y <= maxHeight;
-        
-        // If not in height range, don't teleport
-        if (!isInHeightRange) {
-            return false;
-        }
         
         // L surface teleportation logic
         // Edge 6: If near plane at (0, y, 2*b) with normal (0,0,1) -> teleport to (x, y, -2*b+2*eps)
@@ -533,46 +552,67 @@ try {
         
         // Only handle movement if pointer is locked
         if (isPointerLocked) {
-            // Handle dynamic camera movement
-            velocity.set(0, 0, 0);
-            
-            // Handle movement with quaternion-based direction
-            if (moveForward) {
-                velocity.z = -movementSpeed * delta;
-                velocity.applyQuaternion(dynamicCamera.quaternion);
-                dynamicCamera.position.add(velocity);
+            // IMPROVED MOVEMENT SYSTEM THAT WORKS PROPERLY WHEN LOOKING STRAIGHT DOWN
+            if (moveForward || moveBackward || moveLeft || moveRight) {
+                // Create input vector based on which keys are pressed
+                const inputDir = new THREE.Vector3(
+                    (moveRight ? 1 : 0) - (moveLeft ? 1 : 0),
+                    0,
+                    (moveBackward ? 1 : 0) - (moveForward ? 1 : 0)
+                );
+                
+                // Only proceed if there's input
+                if (inputDir.lengthSq() > 0) {
+                    // Normalize to prevent faster diagonal movement
+                    inputDir.normalize();
+                    
+                    // Get the camera's forward and right vectors
+                    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(dynamicCamera.quaternion);
+                    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(dynamicCamera.quaternion);
+                    
+                    // Project these vectors onto the horizontal plane
+                    forward.y = 0;
+                    right.y = 0;
+                    
+                    // Normalize them (critical to maintain consistent speed)
+                    if (forward.lengthSq() > 0.001) forward.normalize();
+                    if (right.lengthSq() > 0.001) right.normalize();
+                    
+                    // Calculate movement vector based on input and camera orientation
+                    const moveVector = new THREE.Vector3(0, 0, 0);
+                    moveVector.addScaledVector(forward, -inputDir.z); // Forward/backward
+                    moveVector.addScaledVector(right, inputDir.x); // Left/right
+                    
+                    // Apply speed and time factors
+                    moveVector.multiplyScalar(movementSpeed * delta);
+                    
+                    // Apply movement
+                    dynamicCamera.position.add(moveVector);
+                }
             }
             
-            if (moveBackward) {
-                velocity.z = movementSpeed * delta;
-                velocity.applyQuaternion(dynamicCamera.quaternion);
-                dynamicCamera.position.add(velocity);
-            }
-            
-            if (moveLeft) {
-                velocity.x = -movementSpeed * delta;
-                velocity.applyQuaternion(dynamicCamera.quaternion);
-                dynamicCamera.position.add(velocity);
-            }
-            
-            if (moveRight) {
-                velocity.x = movementSpeed * delta;
-                velocity.applyQuaternion(dynamicCamera.quaternion);
-                dynamicCamera.position.add(velocity);
-            }
-            
+            // Handle vertical movement (change height)
             if (moveUp) {
-                velocity.y = movementSpeed * delta;
-                dynamicCamera.position.add(velocity);
+                // E key = Move up
+                currentHeight = currentHeight + verticalSpeed * delta;
+                // Update height indicator
+                heightInfoDiv.textContent = `Height: ${currentHeight.toFixed(1)}`;
             }
             
             if (moveDown) {
-                velocity.y = -movementSpeed * delta;
-                dynamicCamera.position.add(velocity);
+                // Q key = Move down
+                currentHeight = currentHeight - verticalSpeed * delta;
+                // Update height indicator
+                heightInfoDiv.textContent = `Height: ${currentHeight.toFixed(1)}`;
             }
             
-            // Check if camera needs to be teleported and do teleportation based on current shader
-            if (time - lastTeleportTime > teleportCooldown) {
+            // Check if height is within teleport range and update teleport status accordingly
+            if (!isHeightInTeleportRange(currentHeight)) {
+                // Height is out of range, set teleport status to "out of range"
+                teleportStatusDiv.textContent = 'Teleport: Out of Range';
+                teleportStatusDiv.style.backgroundColor = 'rgba(255,0,0,0.7)';
+            } else if (time - lastTeleportTime > teleportCooldown) {
+                // Height is in range, check if teleportation is needed
                 if (checkAndTeleportCamera(dynamicCamera.position)) {
                     lastTeleportTime = time;
                     teleportStatusDiv.textContent = 'Teleport: Active';
@@ -580,15 +620,16 @@ try {
                     
                     // Reset teleport status after a short delay
                     setTimeout(() => {
-                        teleportStatusDiv.textContent = 'Teleport: Ready';
-                        teleportStatusDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
+                        if (isHeightInTeleportRange(currentHeight)) {
+                            teleportStatusDiv.textContent = 'Teleport: Ready';
+                            teleportStatusDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
+                        } else {
+                            teleportStatusDiv.textContent = 'Teleport: Out of Range';
+                            teleportStatusDiv.style.backgroundColor = 'rgba(255,0,0,0.7)';
+                        }
                     }, 500);
-                } else if (dynamicCamera.position.y < -wall_height || dynamicCamera.position.y > wall_height) {
-                    // Update status to show we're out of teleport range
-                    teleportStatusDiv.textContent = 'Teleport: Out of Range';
-                    teleportStatusDiv.style.backgroundColor = 'rgba(255,0,0,0.7)';
                 } else {
-                    // Update status to show we're in teleport range but not near a portal
+                    // Always ready for teleport when in height range
                     teleportStatusDiv.textContent = 'Teleport: Ready';
                     teleportStatusDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
                 }
@@ -596,7 +637,10 @@ try {
         }
         
         // Update common shader uniforms with the dynamic camera's position and orientation
-        uniforms.rayMarchCamPos.value.copy(dynamicCamera.position);
+        // Use currentHeight for the view height
+        const viewPosition = dynamicCamera.position.clone();
+        viewPosition.y = currentHeight; // Use current height for view
+        uniforms.rayMarchCamPos.value.copy(viewPosition);
         
         // Calculate camera front vector from quaternion
         const cameraFront = new THREE.Vector3(0, 0, -1);
@@ -610,7 +654,7 @@ try {
         
         // Update camera position indicator
         cameraInfoDiv.textContent = 
-            `Position: (${dynamicCamera.position.x.toFixed(1)}, ${dynamicCamera.position.y.toFixed(1)}, ${dynamicCamera.position.z.toFixed(1)})`;
+            `Position: (${dynamicCamera.position.x.toFixed(1)}, ${currentHeight.toFixed(1)}, ${dynamicCamera.position.z.toFixed(1)})`;
         
         // Render using the static camera and the static scene
         renderer.render(staticScene, staticCamera);
