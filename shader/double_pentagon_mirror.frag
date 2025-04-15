@@ -72,15 +72,15 @@ float sdWall(vec3 p, vec3 a, vec3 b, float height, float thickness) {
 
 // object
 float sdf_mirrors(vec3 p) {
-    float wall_length = 2.*2.3511410091698925;
-    float df = sdBox(rotMat(vec3(0., 1., 0.), -2.199114857512855)*(p - 2.*vec3(2.92705098,0., 0.95105652)), vec3(wall_length*0.5, wall_height, eps)); // d right
-    df = opUnion(df, sdBox(rotMat(vec3(0., 1., 0.), -2.199114857512855)*(p - 2.*vec3(-2.92705098,0., -0.95105652)), vec3(wall_length*0.5, wall_height, eps))); // d left
-    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -0.3141592653589791)*(p - 2.*vec3(1.11803399,0., 1.53884177)), vec3(wall_length*0.5, wall_height, eps))); // c right 
-    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -0.3141592653589791)*(p - 2.*vec3(-1.11803399,0., -1.53884177)), vec3(wall_length*0.5, wall_height, eps))); // c left
-    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -2.8274333882308142)*(p - 2.*vec3(1.11803399,0., -1.53884177)), vec3(wall_length*0.5, wall_height, eps))); // b right
-    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -2.8274333882308142)*(p - 2.*vec3(-1.11803399,0., 1.53884177)), vec3(wall_length*0.5, wall_height, eps))); // b left
-    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -0.9424777960769379)*(p - 2.*vec3(2.92705098,0., -0.95105652)), vec3(wall_length*0.5, wall_height, eps))); // a right
-    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -0.9424777960769379)*(p - 2.*vec3(-2.92705098,0., 0.95105652)), vec3(wall_length*0.5, wall_height, eps))); // a left
+    float wall_length = 2.3511410091698925;
+    float df = sdBox(rotMat(vec3(0., 1., 0.), -2.199114857512855)*(p - vec3(2.92705098,0., 0.95105652)), vec3(wall_length*0.5, wall_height, eps)); // d right
+    df = opUnion(df, sdBox(rotMat(vec3(0., 1., 0.), -2.199114857512855)*(p - vec3(-2.92705098,0., -0.95105652)), vec3(wall_length*0.5, wall_height, eps))); // d left
+    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -0.3141592653589791)*(p - vec3(1.11803399,0., 1.53884177)), vec3(wall_length*0.5, wall_height, eps))); // c right 
+    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -0.3141592653589791)*(p - vec3(-1.11803399,0., -1.53884177)), vec3(wall_length*0.5, wall_height, eps))); // c left
+    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -2.8274333882308142)*(p - vec3(1.11803399,0., -1.53884177)), vec3(wall_length*0.5, wall_height, eps))); // b right
+    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -2.8274333882308142)*(p - vec3(-1.11803399,0., 1.53884177)), vec3(wall_length*0.5, wall_height, eps))); // b left
+    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -0.9424777960769379)*(p - vec3(2.92705098,0., -0.95105652)), vec3(wall_length*0.5, wall_height, eps))); // a right
+    df = opUnion(df,sdBox(rotMat(vec3(0., 1., 0.), -0.9424777960769379)*(p - vec3(-2.92705098,0., 0.95105652)), vec3(wall_length*0.5, wall_height, eps))); // a left
 
     return df;
 }

@@ -28,8 +28,8 @@
       min-height: 240px;
       max-width: 90vw;
       max-height: 80vh;
-      width: 320px;
-      height: 240px;
+      width: 800px;
+      height: 600px;
     }
     
     canvas {
@@ -147,40 +147,6 @@
     <button class="control-btn" id="reset-size">Reset Size</button>
   </div>
   
-  <script type="module" src="/main.js"></script>
-  
-  <script>
-    // Handle resolution display updates
-    const resolutionDisplay = document.getElementById('resolution');
-    const canvasContainer = document.querySelector('.canvas-container');
-    
-    // Update resolution text when container is resized
-    const resizeObserver = new ResizeObserver(entries => {
-      for (let entry of entries) {
-        const width = Math.floor(entry.contentRect.width);
-        const height = Math.floor(entry.contentRect.height);
-        resolutionDisplay.textContent = `${width}×${height}`;
-      }
-    });
-    
-    resizeObserver.observe(canvasContainer);
-    
-    // Fullscreen button
-    document.getElementById('fullscreen').addEventListener('click', () => {
-      if (canvasContainer.requestFullscreen) {
-        canvasContainer.requestFullscreen();
-      } else if (canvasContainer.webkitRequestFullscreen) {
-        canvasContainer.webkitRequestFullscreen();
-      } else if (canvasContainer.msRequestFullscreen) {
-        canvasContainer.msRequestFullscreen();
-      }
-    });
-    
-    // Reset size button
-    document.getElementById('reset-size').addEventListener('click', () => {
-      canvasContainer.style.width = '800px';
-      canvasContainer.style.height = '600px';
-    });
-  </script>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>

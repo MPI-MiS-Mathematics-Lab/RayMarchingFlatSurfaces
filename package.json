@@ -2,7 +2,7 @@
   "name": "ray-marching-flat-surfaces",
   "version": "1.0.0",
   "description": "Ray Marching on Locally Flat Surfaces with Three.js",
-  "main": "main.js",
+  "main": "src/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
