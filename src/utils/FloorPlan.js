@@ -1,254 +1,200 @@
-// src/utils/FloorPlan.js
-import * as THREE from 'three';
-
+/**
+ * FloorPlan utility for visualizing the current surface and camera position
+ * Simplified version that only visualizes polygon and camera position without teleport logic
+ */
 class FloorPlan {
-  constructor(container) {
-    this.container = container;
-    this.svgNS = "http://www.w3.org/2000/svg";
-    this.createElements();
-    this.currentSurface = null;
-    this.cameraPosition = new THREE.Vector2();
-    this.mapScale = 20; // pixels per unit
-    this.cameraMarkerSize = 8; // pixels
-    this.viewAngle = 0; // Camera view angle in radians
-    this.visible = true; // Track visibility state
-    this.edgeLabels = []; // Store edge label elements
-  }
-  
-  createElements() {
-    // Create the floor plan container
-    this.floorPlanContainer = document.createElement('div');
-    this.floorPlanContainer.className = 'floor-plan-container';
-    this.floorPlanContainer.style.position = 'absolute';
-    this.floorPlanContainer.style.bottom = '10px';
-    this.floorPlanContainer.style.right = '10px';
-    this.floorPlanContainer.style.width = '200px';
-    this.floorPlanContainer.style.height = '200px';
-    this.floorPlanContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-    this.floorPlanContainer.style.border = '1px solid #555';
-    this.floorPlanContainer.style.borderRadius = '5px';
-    this.floorPlanContainer.style.zIndex = '100';
-    this.floorPlanContainer.style.overflow = 'hidden';
-    
-    // Create title
-    this.title = document.createElement('div');
-    this.title.style.padding = '5px';
-    this.title.style.fontSize = '12px';
-    this.title.style.fontWeight = 'bold';
-    this.title.style.borderBottom = '1px solid #555';
-    this.title.textContent = 'Floor Plan';
-    this.floorPlanContainer.appendChild(this.title);
-    
-    // Create SVG for the floor plan
-    this.svg = document.createElementNS(this.svgNS, 'svg');
-    this.svg.setAttribute('width', '100%');
-    this.svg.setAttribute('height', 'calc(100% - 25px)');
-    this.svg.style.display = 'block';
-    this.floorPlanContainer.appendChild(this.svg);
-    
-    // Create group for transformations
-    this.svgGroup = document.createElementNS(this.svgNS, 'g');
-    this.svg.appendChild(this.svgGroup);
-    
-    // Create polygon for the surface
-    this.polygon = document.createElementNS(this.svgNS, 'polygon');
-    this.polygon.setAttribute('fill', 'none');
-    this.polygon.setAttribute('stroke', '#6af');
-    this.polygon.setAttribute('stroke-width', '2');
-    this.svgGroup.appendChild(this.polygon);
-    
-    // Create group for edge labels
-    this.edgeLabelsGroup = document.createElementNS(this.svgNS, 'g');
-    this.svgGroup.appendChild(this.edgeLabelsGroup);
-    
-    // Create camera marker
-    this.cameraMarker = document.createElementNS(this.svgNS, 'circle');
-    this.cameraMarker.setAttribute('r', this.cameraMarkerSize);
-    this.cameraMarker.setAttribute('fill', '#ff3');
-    this.svgGroup.appendChild(this.cameraMarker);
-    
-    // Create camera direction indicator
-    this.directionIndicator = document.createElementNS(this.svgNS, 'path');
-    this.directionIndicator.setAttribute('stroke', '#ff3');
-    this.directionIndicator.setAttribute('stroke-width', '2');
-    this.directionIndicator.setAttribute('fill', 'none');
-    this.svgGroup.appendChild(this.directionIndicator);
-    
-    // Add to the container
-    this.container.appendChild(this.floorPlanContainer);
-    
-    // Set initial transformation
-    this.updateTransform();
-  }
-  
-  setSurface(surface) {
-    console.log("FloorPlan: Setting new surface", surface ? surface.config?.displayName : 'undefined');
-    
-    if (!surface || !surface.config || !surface.config.teleportConfig || !surface.config.teleportConfig.vertices) {
-      console.warn('Invalid surface for floor plan', surface);
-      return;
+    constructor(container) {
+      this.container = container;
+      this.visible = false;
+      this.scale = 40; // Pixels per unit
+      
+      // Create elements
+      this.createElements();
+      
+      // Initially hide the floor plan
+      this.hide();
     }
     
-    this.currentSurface = surface;
-    
-    // Get vertices and log them for debugging
-    const vertices = surface.config.teleportConfig.vertices;
-    console.log(`FloorPlan: Surface has ${vertices.length} vertices`);
-    
-    // Update polygon points - Flipping the X coordinate by changing its sign
-    const pointsStr = vertices.map(v => `${-v.x * this.mapScale},${-v.y * this.mapScale}`).join(' ');
-    this.polygon.setAttribute('points', pointsStr);
-    
-    // Calculate bounds for auto-centering
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const vertex of vertices) {
-      // Use negated X values for bounds calculation
-      minX = Math.min(minX, -vertex.x);
-      minY = Math.min(minY, vertex.y);
-      maxX = Math.max(maxX, -vertex.x);
-      maxY = Math.max(maxY, vertex.y);
+    /**
+     * Create SVG elements for the floor plan
+     */
+    createElements() {
+      // Create SVG container
+      this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      this.svg.style.position = 'absolute';
+      this.svg.style.bottom = '10px';
+      this.svg.style.right = '10px';
+      this.svg.style.width = '200px';
+      this.svg.style.height = '200px';
+      this.svg.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+      this.svg.style.border = '1px solid #555';
+      this.svg.style.borderRadius = '5px';
+      this.svg.style.zIndex = '50';
+      
+      // Create a group for all elements with a transform for proper scaling and orientation
+      this.group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      this.svg.appendChild(this.group);
+      
+      // Create polygon element for the surface
+      this.polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      this.polygon.setAttribute('fill', 'none');
+      this.polygon.setAttribute('stroke', '#4CAF50');
+      this.polygon.setAttribute('stroke-width', '2');
+      this.group.appendChild(this.polygon);
+      
+      // Create camera marker
+      this.cameraMarker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      this.cameraMarker.setAttribute('r', '5');
+      this.cameraMarker.setAttribute('fill', '#FF5722');
+      this.group.appendChild(this.cameraMarker);
+      
+      // Create direction indicator
+      this.directionLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      this.directionLine.setAttribute('stroke', '#FFC107');
+      this.directionLine.setAttribute('stroke-width', '2');
+      this.group.appendChild(this.directionLine);
+      
+      // Add to container
+      this.container.appendChild(this.svg);
+      
+      // Initial transform update
+      this.updateTransform();
     }
     
-    // Calculate center and size for auto-centering
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    const width = maxX - minX;
-    const height = maxY - minY;
-    const boxSize = Math.max(width, height) * 1.2; // Add 20% margin
-    
-    // Store for transform calculations
-    this.centerX = centerX;
-    this.centerY = centerY;
-    this.boxSize = boxSize;
-    
-    // Update transform
-    this.updateTransform();
-    
-    // Update the title to match the current surface
-    this.title.textContent = `Floor Plan: ${surface.config.displayName || 'Unknown'}`;
-    
-    // Add edge numbers
-    this.createEdgeLabels(vertices);
-    
-    console.log("FloorPlan: Surface updated successfully");
-  }
-  
-  createEdgeLabels(vertices) {
-    // Clear any existing edge labels
-    while (this.edgeLabelsGroup.firstChild) {
-      this.edgeLabelsGroup.removeChild(this.edgeLabelsGroup.firstChild);
+    /**
+     * Set the current surface for visualization
+     * @param {Surface} surface - Current surface object
+     */
+    setSurface(surface) {
+      if (!surface) return;
+      
+      // Get vertices from surface
+      const vertices = surface.getVertices();
+      
+      // Set polygon points
+      const points = vertices.map(v => {
+        // Note: we flip x coordinate to match visualization expectations
+        return `${-v.x * this.scale},${v.z * this.scale}`;
+      }).join(' ');
+      
+      this.polygon.setAttribute('points', points);
+      
+      // Create edge labels if needed
+      this.createEdgeLabels(vertices);
+      
+      // Update transform to center the polygon
+      this.updateTransform();
     }
-    this.edgeLabels = [];
     
-    // Create a label for each edge (except the last one if it's a duplicate closing point)
-    const numEdges = vertices.length - (vertices[0].equals(vertices[vertices.length - 1]) ? 1 : 0);
-    
-    for (let i = 0; i < numEdges; i++) {
-      const v1 = vertices[i];
-      const v2 = vertices[(i + 1) % numEdges];
+    /**
+     * Create numbered labels for each edge of the polygon
+     * @param {Array<THREE.Vector3>} vertices - Surface vertices
+     */
+    createEdgeLabels(vertices) {
+      // Remove any existing labels
+      const existingLabels = this.svg.querySelectorAll('.edge-label');
+      existingLabels.forEach(label => label.remove());
       
-      // Calculate midpoint of the edge for label placement
-      const midX = -(v1.x + v2.x) / 2 * this.mapScale; // Negate for flipped X
-      const midY = -(v1.y + v2.y) / 2 * this.mapScale;
-      
-      // Create the label text element
-      const label = document.createElementNS(this.svgNS, 'text');
-      label.setAttribute('x', midX);
-      label.setAttribute('y', midY);
-      label.setAttribute('text-anchor', 'middle');
-      label.setAttribute('dominant-baseline', 'middle');
-      label.setAttribute('fill', '#fff');
-      label.setAttribute('font-size', '10px');
-      label.setAttribute('font-weight', 'bold');
-      label.textContent = i.toString();
-      
-      // Create circle background for better visibility
-      const circle = document.createElementNS(this.svgNS, 'circle');
-      circle.setAttribute('cx', midX);
-      circle.setAttribute('cy', midY);
-      circle.setAttribute('r', '7');
-      circle.setAttribute('fill', 'rgba(0, 0, 0, 0.7)');
-      circle.setAttribute('stroke', '#fff');
-      circle.setAttribute('stroke-width', '1');
-      
-      // Add to group
-      this.edgeLabelsGroup.appendChild(circle);
-      this.edgeLabelsGroup.appendChild(label);
-      
-      // Store reference
-      this.edgeLabels.push({ label, circle });
+      // Create a label for each edge
+      for (let i = 0; i < vertices.length - 1; i++) {
+        const v1 = vertices[i];
+        const v2 = vertices[i + 1];
+        
+        // Calculate midpoint of the edge
+        const midX = -(v1.x + v2.x) / 2 * this.scale;
+        const midZ = (v1.z + v2.z) / 2 * this.scale;
+        
+        // Create text element
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', midX);
+        label.setAttribute('y', midZ);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('dominant-baseline', 'middle');
+        label.setAttribute('fill', 'white');
+        label.setAttribute('font-size', '10');
+        label.setAttribute('class', 'edge-label');
+        label.textContent = i.toString();
+        
+        this.group.appendChild(label);
+      }
     }
-  }
-  
-  updateTransform() {
-    if (!this.centerX && this.centerX !== 0) return;
     
-    const svgRect = this.svg.getBoundingClientRect();
-    const svgWidth = svgRect.width;
-    const svgHeight = svgRect.height;
-    
-    // Calculate scale to fit the box
-    const scaleX = svgWidth / (this.boxSize * this.mapScale);
-    const scaleY = svgHeight / (this.boxSize * this.mapScale);
-    const scale = Math.min(scaleX, scaleY);
-    
-    // Calculate translation to center
-    const translateX = svgWidth / 2 - this.centerX * this.mapScale * scale;
-    const translateY = svgHeight / 2 + this.centerY * this.mapScale * scale;
-    
-    // Apply transformation
-    this.svgGroup.setAttribute('transform', `translate(${translateX},${translateY}) scale(${scale})`);
-  }
-  
-  updateCameraPosition(position, frontVector) {
-    if (!this.currentSurface) return;
-    
-    // Update camera position - flipping the X coordinate
-    this.cameraPosition.x = position.x;
-    this.cameraPosition.y = position.z; // Using Z as Y in 2D
-    this.cameraMarker.setAttribute('cx', -this.cameraPosition.x * this.mapScale);
-    this.cameraMarker.setAttribute('cy', -this.cameraPosition.y * this.mapScale);
-    
-    // Update view angle from front vector
-    if (frontVector) {
-      this.viewAngle = Math.atan2(frontVector.z, frontVector.x);
+    /**
+     * Update SVG transform to center the polygon
+     */
+    updateTransform() {
+      // Get SVG dimensions
+      const width = parseInt(this.svg.style.width, 10);
+      const height = parseInt(this.svg.style.height, 10);
       
-      // Calculate direction indicator points - with flipped X
-      const radius = this.cameraMarkerSize * 2;
-      const x1 = -this.cameraPosition.x * this.mapScale;
-      const y1 = -this.cameraPosition.y * this.mapScale;
-      // Need to adjust angle for x-flipped coordinate system
-      const x2 = x1 - Math.cos(this.viewAngle) * radius;
-      const y2 = y1 - Math.sin(this.viewAngle) * radius;
+      // Set transform to center the visualization
+      this.group.setAttribute('transform', `translate(${width/2}, ${height/2})`);
+    }
+    
+    /**
+     * Update camera position in the floor plan
+     * @param {THREE.Vector3} position - Camera position
+     * @param {THREE.Vector3} frontVector - Camera direction vector
+     */
+    updateCameraPosition(position, frontVector) {
+      if (!this.visible) return;
       
-      // Update direction indicator
-      this.directionIndicator.setAttribute('d', `M${x1},${y1} L${x2},${y2}`);
+      // Update camera marker position (flip X to match visualization)
+      this.cameraMarker.setAttribute('cx', -position.x * this.scale);
+      this.cameraMarker.setAttribute('cy', position.z * this.scale);
+      
+      // Update direction line
+      // Start point is the camera position
+      this.directionLine.setAttribute('x1', -position.x * this.scale);
+      this.directionLine.setAttribute('y1', position.z * this.scale);
+      
+      // End point is in the direction of frontVector (only use X and Z components)
+      // Normalize and scale by a fixed amount
+      const dirLength = 15; // Length of direction indicator
+      
+      // Project to XZ plane and normalize
+      const dirNorm = Math.sqrt(frontVector.x * frontVector.x + frontVector.z * frontVector.z);
+      const dirX = frontVector.x / dirNorm;
+      const dirZ = frontVector.z / dirNorm;
+      
+      this.directionLine.setAttribute('x2', -(position.x + dirX * dirLength / this.scale) * this.scale);
+      this.directionLine.setAttribute('y2', (position.z + dirZ * dirLength / this.scale) * this.scale);
+    }
+    
+    /**
+     * Handle container resizing
+     */
+    resize() {
+      // Recalculate transform
+      this.updateTransform();
+    }
+    
+    /**
+     * Toggle floor plan visibility
+     */
+    toggle() {
+      if (this.visible) {
+        this.hide();
+      } else {
+        this.show();
+      }
+    }
+    
+    /**
+     * Show the floor plan
+     */
+    show() {
+      this.visible = true;
+      this.svg.style.display = 'block';
+    }
+    
+    /**
+     * Hide the floor plan
+     */
+    hide() {
+      this.visible = false;
+      this.svg.style.display = 'none';
     }
   }
   
-  resize() {
-    this.updateTransform();
-  }
-  
-  toggle() {
-    this.visible = !this.visible;
-    this.floorPlanContainer.style.display = this.visible ? 'block' : 'none';
-    return this.visible;
-  }
-  
-  show() {
-    this.visible = true;
-    this.floorPlanContainer.style.display = 'block';
-  }
-  
-  hide() {
-    this.visible = false;
-    this.floorPlanContainer.style.display = 'none';
-  }
-  
-  isVisible() {
-    return this.visible;
-  }
-}
-
-export default FloorPlan;
+  export default FloorPlan;

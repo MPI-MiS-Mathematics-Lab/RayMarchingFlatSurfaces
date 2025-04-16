@@ -63,7 +63,6 @@ vec4 sdBoxT(vec3 p, vec3 b, vec3 translate_by) {
 
 // Object - double pentagon translation surface
 vec4 sdfT(vec3 p) {
-    // Right pentagon walls with translation vectors
     vec4 df = sdWallT(p, 
                      vec3(3.61803399e+00, 0., 0.00000000e+00), 
                      vec3(2.23606798e+00, 0., 1.90211303e+00), 

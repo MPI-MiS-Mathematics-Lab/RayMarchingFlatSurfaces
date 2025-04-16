@@ -1,0 +1,59 @@
+{
+    "id": "square",
+    "name": "Square Room",
+    "description": "A simple square room with teleportation on edges",
+    "vertices": [
+      [2.0, 2.0],
+      [-2.0, 2.0],
+      [-2.0, -2.0],
+      [2.0, -2.0],
+      [2.0, 2.0]
+    ],
+    "edges": [
+      {
+        "id": 0,
+        "type": "translation",
+        "vector": [0.0, 0.0, -4.0]
+      },
+      {
+        "id": 1,
+        "type": "translation",
+        "vector": [4.0, 0.0, 0.0]
+      },
+      {
+        "id": 2,
+        "type": "translation",
+        "vector": [0.0, 0.0, 4.0]
+      },
+      {
+        "id": 3,
+        "type": "translation",
+        "vector": [-4.0, 0.0, 0.0]
+      }
+    ],
+    "initialPosition": [0.0, 1.0, 0.0],
+    "wallHeight": 2.0,
+    "teleportThreshold": 0.1,
+    "teleportHeightRange": [0.0, 2.0],
+    "decorations": [
+      {
+        "type": "sphere",
+        "position": [0.0, 1.0, 0.0],
+        "radius": 0.13,
+        "animation": {
+          "enabled": false
+        }
+      },
+      {
+        "type": "sphere",
+        "position": [1.618, 1.0, 0.0],
+        "radius": 0.07,
+        "animation": {
+          "enabled": true,
+          "type": "circular",
+          "speed": 1.5,
+          "radius": 1.0
+        }
+      }
+    ]
+  }

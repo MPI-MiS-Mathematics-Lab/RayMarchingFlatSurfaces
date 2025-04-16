@@ -1,0 +1,72 @@
+{
+    "id": "pentagon",
+    "name": "Double Pentagon Translation",
+    "description": "Two pentagons with translation teleportation on edges",
+    "vertices": [
+      [3.61803399, 0.00000000],
+      [2.23606798, 1.90211303],
+      [0.00000000, 1.17557050],
+      [-2.23606798, 1.90211303],
+      [-3.61803399, 0.00000000],
+      [-2.23606798, -1.90211303],
+      [0.00000000, -1.17557050],
+      [2.23606798, -1.90211303],
+      [3.61803399, 0.00000000]
+    ],
+    "edges": [
+      {
+        "id": 0,
+        "type": "translation",
+        "vector": [-5.85410197, 0.0, -1.90211303]
+      },
+      {
+        "id": 1,
+        "type": "translation",
+        "vector": [-2.23606798, 0.0, -3.07768353]
+      },
+      {
+        "id": 2,
+        "type": "translation",
+        "vector": [2.23606798, 0.0, -3.07768353]
+      },
+      {
+        "id": 3,
+        "type": "translation",
+        "vector": [5.85410197, 0.0, -1.90211303]
+      },
+      {
+        "id": 4,
+        "type": "translation",
+        "vector": [5.85410197, 0.0, 1.90211303]
+      },
+      {
+        "id": 5,
+        "type": "translation",
+        "vector": [2.23606798, 0.0, 3.07768353]
+      },
+      {
+        "id": 6,
+        "type": "translation",
+        "vector": [-2.23606798, 0.0, 3.07768353]
+      },
+      {
+        "id": 7,
+        "type": "translation",
+        "vector": [-5.85410197, 0.0, 1.90211303]
+      }
+    ],
+    "initialPosition": [0.0, 1.0, 0.0],
+    "wallHeight": 2.0,
+    "teleportThreshold": 0.1,
+    "teleportHeightRange": [0.0, 2.0],
+    "decorations": [
+      {
+        "type": "sphere",
+        "position": [0.0, 1.0, 0.0],
+        "radius": 0.15,
+        "animation": {
+          "enabled": false
+        }
+      }
+    ]
+  }

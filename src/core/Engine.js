@@ -1,124 +1,198 @@
 import * as THREE from 'three';
+import Surface from '../Surface.js';
 
+/**
+ * Engine class for managing Three.js scene, renderer, and surfaces
+ * Simplified version without camera teleportation
+ */
 class Engine {
+  /**
+   * Create a new Engine
+   * @param {HTMLElement} container - Container for the renderer
+   */
   constructor(container) {
     this.container = container;
     this.surfaces = new Map();
     this.currentSurface = null;
     this.currentSurfaceId = null;
-    this.lastTime = performance.now();
+    
+    // Create shared uniforms that will be passed to all shaders
     this.uniforms = {
-      iTime: { value: 0.0 },
       iResolution: { value: new THREE.Vector2() },
+      iTime: { value: 0 },
       rayMarchCamPos: { value: new THREE.Vector3() },
       rayMarchCamFront: { value: new THREE.Vector3() },
-      rayMarchCamUp: { value: new THREE.Vector3(0, 1, 0) },
-      iPixelRatio: { value: window.devicePixelRatio }
+      rayMarchCamUp: { value: new THREE.Vector3() }
     };
     
+    // Initialize renderer and scene
     this.initRenderer();
     this.initScene();
+    
+    // Track time for animations
+    this.clock = new THREE.Clock();
+    
+    console.log("Engine initialized");
   }
   
+  /**
+   * Initialize the WebGL renderer
+   */
   initRenderer() {
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: "high-performance"
-    });
-    
-    this.renderer.setClearColor(0x333333);
+    // Create WebGL renderer
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
-    
-    const width = this.container.clientWidth;
-    const height = this.container.clientHeight;
-    this.renderer.setSize(width, height);
     this.container.appendChild(this.renderer.domElement);
     
-    // Update resolution uniform
-    this.uniforms.iResolution.value.set(
-      width * window.devicePixelRatio,
-      height * window.devicePixelRatio
-    );
+    // Get container dimensions
+    const width = this.container.clientWidth;
+    const height = this.container.clientHeight;
+    
+    // Set renderer size
+    this.renderer.setSize(width, height);
   }
   
+  /**
+   * Initialize the Three.js scene
+   */
   initScene() {
-    // Static scene for the quad with shader
-    this.staticScene = new THREE.Scene();
+    // Create scene
+    this.scene = new THREE.Scene();
     
-    // Static camera for rendering the quad
-    this.staticCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
-    this.staticCamera.position.z = 1;
+    // Create camera (only used for rendering, not for camera position)
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     
-    // Create a full-screen quad for ray marching
-    const geometry = new THREE.PlaneGeometry(2, 2);
-    this.quad = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0x333333 }));
-    this.staticScene.add(this.quad);
+    // Create a plane that covers the entire screen
+    const planeGeometry = new THREE.PlaneGeometry(2, 2);
+    
+    // We'll create a material later when a surface is selected
+    this.screenQuad = new THREE.Mesh(planeGeometry);
+    this.scene.add(this.screenQuad);
   }
   
+  /**
+   * Register a surface with the engine
+   * @param {string} id - Unique identifier for the surface
+   * @param {Surface} surface - Surface object
+   */
   registerSurface(id, surface) {
     this.surfaces.set(id, surface);
   }
   
+  /**
+   * Register a surface from a JSON configuration
+   * @param {Object} config - Surface configuration object
+   */
+  registerSurfaceFromJSON(config) {
+    const surface = new Surface(config);
+    this.registerSurface(config.id, surface);
+  }
+  
+  /**
+   * Change to a different surface
+   * @param {string} surfaceId - ID of the surface to activate
+   * @returns {Promise<Object>} - Result of the surface change
+   */
   async changeSurface(surfaceId) {
+    // Make sure the surface exists
     if (!this.surfaces.has(surfaceId)) {
-      console.error(`Surface '${surfaceId}' not registered`);
-      return false;
+      console.error(`Surface ${surfaceId} not found`);
+      return { success: false };
     }
     
-    // Deactivate current surface if there is one
+    // Deactivate current surface if one is active
     if (this.currentSurface) {
       this.currentSurface.deactivate();
     }
     
-    // Set new surface as current
-    this.currentSurfaceId = surfaceId;
-    this.currentSurface = this.surfaces.get(surfaceId);
+    // Get the new surface
+    const surface = this.surfaces.get(surfaceId);
     
-    // Create material and activate the surface
-    await this.currentSurface.createMaterial(this.uniforms);
-    this.quad.material = this.currentSurface.material;
-    
-    // Reset camera position to the recommended starting position for this surface
-    const startPos = this.currentSurface.getInitialPosition();
-    
-    return {
-      success: true,
-      initialPosition: startPos,
-      surfaceName: this.currentSurface.config.displayName
-    };
-  }
-  
-  animate(updateCallback) {
-    // Request next frame
-    requestAnimationFrame(() => this.animate(updateCallback));
-    
-    // Calculate delta time
-    const now = performance.now();
-    const delta = (now - this.lastTime) / 1000;
-    this.lastTime = now;
-    
-    // Update time uniform for shaders
-    this.uniforms.iTime.value += delta;
-    
-    // Call the update callback (for camera/input handling)
-    if (updateCallback) {
-      updateCallback(delta);
+    try {
+      // Create material for the surface
+      const material = await surface.createMaterial(this.uniforms);
+      
+      // Update the screen quad with the new material
+      this.screenQuad.material = material;
+      
+      // Set as current surface
+      this.currentSurface = surface;
+      this.currentSurfaceId = surfaceId;
+      
+      // Activate the new surface
+      surface.activate();
+      
+      return {
+        success: true,
+        surfaceName: surface.name,
+        initialPosition: surface.getInitialPosition()
+      };
+    } catch (error) {
+      console.error(`Error changing to surface ${surfaceId}:`, error);
+      return { success: false };
     }
+  }
+  
+  /**
+   * Update shader uniforms
+   */
+  updateShaderUniforms() {
+    // Update time uniform
+    this.uniforms.iTime.value = this.clock.getElapsedTime();
     
-    // Render using the static camera and scene (with shader quad)
-    this.renderer.render(this.staticScene, this.staticCamera);
+    // Other uniforms will be updated in the animation loop from the camera
   }
   
-  resize(width, height) {
-    this.renderer.setSize(width, height);
-    this.uniforms.iResolution.value.set(
-      width * window.devicePixelRatio,
-      height * window.devicePixelRatio
-    );
-  }
-  
+  /**
+   * Get the DOM element for the renderer
+   * @returns {HTMLCanvasElement} - The canvas element
+   */
   getDomElement() {
     return this.renderer.domElement;
+  }
+  
+  /**
+   * Start the animation loop
+   * @param {Function} updateCallback - Function to call before rendering each frame
+   */
+  animate(updateCallback) {
+    const animate = () => {
+      // Request next frame
+      requestAnimationFrame(animate);
+      
+      // Call the update callback
+      if (updateCallback) {
+        const delta = this.clock.getDelta();
+        updateCallback(delta);
+      }
+      
+      // Update uniforms
+      this.updateShaderUniforms();
+      
+      // Update current surface if one is active
+      if (this.currentSurface) {
+        this.currentSurface.update(this.clock.getDelta());
+      }
+      
+      // Render the scene
+      this.renderer.render(this.scene, this.camera);
+    };
+    
+    // Start the animation loop
+    animate();
+  }
+  
+  /**
+   * Handle renderer resize
+   * @param {number} width - New width
+   * @param {number} height - New height
+   */
+  resize(width, height) {
+    // Update renderer size
+    this.renderer.setSize(width, height);
+    
+    // Update resolution uniform
+    this.uniforms.iResolution.value.set(width, height);
   }
 }
 

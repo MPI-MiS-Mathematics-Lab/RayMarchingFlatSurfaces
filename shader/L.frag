@@ -85,15 +85,15 @@ float sdf(vec3 p) {
     float cylinderRadius = 0.05;  // Larger cylinders for better visibility
     float cylinderHeight = wall_height;
     
-    // Add cylinders at each of the specified positions
-    df = opUnion(df, max(sdCylinder(p - v1, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v1.y) - cylinderHeight));
-    df = opUnion(df, max(sdCylinder(p - v2, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v2.y) - cylinderHeight));
-    df = opUnion(df, max(sdCylinder(p - v3, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v3.y) - cylinderHeight));
-    df = opUnion(df, max(sdCylinder(p - v4, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v4.y) - cylinderHeight));
-    df = opUnion(df, max(sdCylinder(p - v5, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v5.y) - cylinderHeight));
-    df = opUnion(df, max(sdCylinder(p - v6, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v6.y) - cylinderHeight));
-    df = opUnion(df, max(sdCylinder(p - v7, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v7.y) - cylinderHeight));
-    df = opUnion(df, max(sdCylinder(p - v8, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v8.y) - cylinderHeight));
+    // // Add cylinders at each of the specified positions
+    // df = opUnion(df, max(sdCylinder(p - v1, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v1.y) - cylinderHeight));
+    // df = opUnion(df, max(sdCylinder(p - v2, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v2.y) - cylinderHeight));
+    // df = opUnion(df, max(sdCylinder(p - v3, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v3.y) - cylinderHeight));
+    // df = opUnion(df, max(sdCylinder(p - v4, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v4.y) - cylinderHeight));
+    // df = opUnion(df, max(sdCylinder(p - v5, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v5.y) - cylinderHeight));
+    // df = opUnion(df, max(sdCylinder(p - v6, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v6.y) - cylinderHeight));
+    // df = opUnion(df, max(sdCylinder(p - v7, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v7.y) - cylinderHeight));
+    // df = opUnion(df, max(sdCylinder(p - v8, vec3(0.0, 0.0, cylinderRadius)), abs(p.y - v8.y) - cylinderHeight));
 
     return df;
 }
@@ -178,7 +178,7 @@ void main() {
     vec3 color = vec3(1.);
     if(t < tMax) {
         vec3 normal = normalize(getNormal(pos));
-        color = normal * 0.5 + 0.5;
+        color = normal*0.5 +0.5;
     }
 
     // adding collision fog

@@ -1,101 +1,215 @@
 import * as THREE from 'three';
 
+/**
+ * Camera class for handling position, orientation, and height
+ */
 class Camera {
+  /**
+   * Create a camera
+   * @param {HTMLElement} container - Container element
+   */
   constructor(container) {
-    // Camera settings
-    this.FOV = 75;
-    this.NEAR = 0.1;
-    this.FAR = 1000;
+    // Create a ThreeJS camera for internal use
+    this.initCamera(container);
     
-    // Height settings
-    this.MIN_HEIGHT = 0;
-    this.DEFAULT_HEIGHT = 1.7;
-    this.currentHeight = this.DEFAULT_HEIGHT;
+    // Local position and orientation
+    this.position = new THREE.Vector3(0, 1, 0);
+    this.direction = new THREE.Vector3(0, 0, -1);
+    this.up = new THREE.Vector3(0, 1, 0);
     
-    // Create the camera
-    this.camera = new THREE.PerspectiveCamera(
-      this.FOV, 
-      container.clientWidth / container.clientHeight, 
-      this.NEAR, 
-      this.FAR
-    );
+    // Height constraints
+    this.minHeight = 0.1;
+    this.maxHeight = 3.0;
     
-    // Set initial position
-    this.camera.position.set(0, 0, 0);
+    // Pitch constraints (in radians)
+    this.minPitch = -Math.PI / 2 + 0.01; // Just above looking straight down
+    this.maxPitch = Math.PI / 2 - 0.01;  // Just below looking straight up
     
-    // Handle resize
-    this.container = container;
+    // Current pitch and yaw
+    this.pitch = 0;
+    this.yaw = 0;
+    
+    console.log('Camera initialized');
   }
   
+  /**
+   * Initialize the Three.js camera
+   * @param {HTMLElement} container - Container element
+   */
+  initCamera(container) {
+    // Get container dimensions
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    
+    // Create perspective camera
+    this.threeCamera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+  }
+  
+  /**
+   * Handle container resize
+   * @param {number} width - New width
+   * @param {number} height - New height
+   */
   handleResize(width, height) {
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
+    // Update camera aspect ratio
+    this.threeCamera.aspect = width / height;
+    this.threeCamera.updateProjectionMatrix();
   }
   
+  /**
+   * Get the Three.js camera
+   * @returns {THREE.PerspectiveCamera} - The ThreeJS camera object
+   */
   getCamera() {
-    return this.camera;
+    return this.threeCamera;
   }
   
+  /**
+   * Set camera position
+   * @param {THREE.Vector3} position - New position
+   */
   setPosition(position) {
-    this.camera.position.copy(position);
+    this.position.copy(position);
   }
   
+  /**
+   * Get camera position
+   * @returns {THREE.Vector3} - Current position
+   */
   getPosition() {
-    return this.camera.position.clone();
+    return this.position.clone();
   }
   
-  resetOrientation() {
-    this.camera.quaternion.set(0, 0, 0, 1);
-  }
-  
+  /**
+   * Set camera height
+   * @param {number} height - New height
+   */
   setHeight(height) {
-    this.currentHeight = Math.max(this.MIN_HEIGHT, height);
+    const clampedHeight = Math.max(this.minHeight, Math.min(height, this.maxHeight));
+    this.position.y = clampedHeight;
   }
   
+  /**
+   * Get camera height
+   * @returns {number} - Current height
+   */
   getHeight() {
-    return this.currentHeight;
+    return this.position.y;
   }
   
-  resetHeight() {
-    this.currentHeight = this.DEFAULT_HEIGHT;
-    return this.currentHeight;
-  }
-  
+  /**
+   * Update camera height based on input
+   * @param {number} delta - Time since last update
+   * @param {boolean} moveUp - Should move up
+   * @param {boolean} moveDown - Should move down
+   * @param {number} speed - Movement speed
+   * @returns {boolean} - True if height was changed
+   */
   updateHeight(delta, moveUp, moveDown, speed) {
+    let heightChanged = false;
+    
+    // Calculate move distance
+    const moveDistance = speed * delta;
+    
+    // Apply height change
     if (moveUp) {
-      this.currentHeight += speed * delta;
+      this.setHeight(this.position.y + moveDistance);
+      heightChanged = true;
     }
     if (moveDown) {
-      this.currentHeight = Math.max(this.MIN_HEIGHT, this.currentHeight - speed * delta);
+      this.setHeight(this.position.y - moveDistance);
+      heightChanged = true;
     }
-    return this.currentHeight;
+    
+    return heightChanged;
   }
   
-  // Get camera information for shaders
+  /**
+   * Rotate camera around Y axis
+   * @param {number} angle - Angle in radians
+   */
+  rotateY(angle) {
+    // Update yaw
+    this.yaw += angle;
+    
+    // Update direction based on pitch and yaw
+    this.updateDirection();
+  }
+  
+  /**
+   * Rotate camera around X axis (controls pitch)
+   * @param {number} angle - Angle in radians
+   */
+  rotateX(angle) {
+    // Update pitch with constraints
+    this.pitch += angle;
+    this.pitch = Math.max(this.minPitch, Math.min(this.pitch, this.maxPitch));
+    
+    // Update direction based on pitch and yaw
+    this.updateDirection();
+  }
+  
+  /**
+   * Update direction vector based on pitch and yaw
+   */
+  updateDirection() {
+    // Calculate direction based on pitch and yaw
+    this.direction.x = Math.sin(this.yaw) * Math.cos(this.pitch);
+    this.direction.y = Math.sin(this.pitch);
+    this.direction.z = Math.cos(this.yaw) * Math.cos(this.pitch);
+    this.direction.normalize();
+  }
+  
+  /**
+   * Move camera forward along direction vector
+   * @param {number} distance - Distance to move
+   */
+  moveForward(distance) {
+    // Create a horizontal movement vector (no vertical movement)
+    const horizontalDir = new THREE.Vector3(this.direction.x, 0, this.direction.z).normalize();
+    
+    // Move position along horizontal direction
+    this.position.x += horizontalDir.x * distance;
+    this.position.z += horizontalDir.z * distance;
+  }
+  
+  /**
+   * Move camera right, perpendicular to direction vector
+   * @param {number} distance - Distance to move
+   */
+  moveRight(distance) {
+    // Calculate right vector (cross product of direction and up)
+    const right = new THREE.Vector3().crossVectors(this.direction, this.up).normalize();
+    
+    // Move position along right vector (only x and z components)
+    this.position.x += right.x * distance;
+    this.position.z += right.z * distance;
+  }
+  
+  /**
+   * Get camera view info for shaders
+   * @returns {Object} - Object with position, front and up vectors
+   */
   getViewInfo() {
-    // Create a view position with the current height
-    const viewPosition = this.camera.position.clone();
-    viewPosition.y = this.currentHeight;
-    
-    // Calculate camera front vector from quaternion
-    const cameraFront = new THREE.Vector3(0, 0, -1);
-    cameraFront.applyQuaternion(this.camera.quaternion);
-    
-    // Calculate camera up vector from quaternion
-    const cameraUp = new THREE.Vector3(0, 1, 0);
-    cameraUp.applyQuaternion(this.camera.quaternion);
-    
     return {
-      position: viewPosition,
-      front: cameraFront,
-      up: cameraUp
+      position: this.position.clone(),
+      front: this.direction.clone(),
+      up: this.up.clone()
     };
   }
   
+  /**
+   * Reset camera position and orientation
+   * @param {THREE.Vector3} position - New position
+   */
   reset(position) {
-    this.camera.position.copy(position);
-    this.camera.quaternion.set(0, 0, 0, 1);
-    this.currentHeight = this.DEFAULT_HEIGHT;
+    // Reset position
+    this.position.copy(position);
+    
+    // Reset orientation
+    this.pitch = 0;
+    this.yaw = 0;
+    this.updateDirection();
   }
 }
 

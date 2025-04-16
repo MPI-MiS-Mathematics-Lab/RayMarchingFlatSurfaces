@@ -1,111 +1,132 @@
 import * as THREE from 'three';
 
-// Helper function to determine if a point is to the left of a line
+/**
+ * Determine if a point is to the left of a line
+ * @param {THREE.Vector3} a - Line start point
+ * @param {THREE.Vector3} b - Line end point
+ * @param {THREE.Vector3} p - Test point
+ * @returns {boolean} - True if point is to the left of the line
+ */
 export function isLeft(a, b, p) {
-  return (b.x - a.x) * (p.y - a.y) - (p.x - a.x) * (b.y - a.y);
+  return ((b.x - a.x) * (p.z - a.z) - (b.z - a.z) * (p.x - a.x)) > 0;
 }
 
-// Check if point is inside polygon using winding number algorithm
+/**
+ * Check if a point is inside a polygon using the winding number algorithm
+ * @param {THREE.Vector3} p - Test point
+ * @param {Array<THREE.Vector3>} polygon - Array of polygon vertices
+ * @returns {boolean} - True if point is inside the polygon
+ */
 export function isInsidePolygon(p, polygon) {
-  let winding = 0;
+  let wn = 0; // the winding number counter
   
-  // Convert 3D point to 2D point in the XZ plane
-  const p2D = new THREE.Vector2(p.x, p.z);
-  
+  // Loop through all edges of the polygon
   for (let i = 0; i < polygon.length - 1; i++) {
-    const v1 = polygon[i];
-    const v2 = polygon[i + 1];
-    
-    if (v1.y <= p2D.y) {
-      if (v2.y > p2D.y && isLeft(v1, v2, p2D) > 0)
-        winding += 1;
+    // Edge from polygon[i] to polygon[i+1]
+    if (polygon[i].z <= p.z) {
+      // Start y <= P.y
+      if (polygon[i+1].z > p.z) {
+        // An upward crossing
+        if (isLeft(polygon[i], polygon[i+1], p)) {
+          // P left of edge
+          ++wn; // Have a valid up intersect
+        }
+      }
     } else {
-      if (v2.y <= p2D.y && isLeft(v1, v2, p2D) < 0)
-        winding -= 1;
+      // Start y > P.y (no test needed)
+      if (polygon[i+1].z <= p.z) {
+        // A downward crossing
+        if (!isLeft(polygon[i], polygon[i+1], p)) {
+          // P right of edge
+          --wn; // Have a valid down intersect
+        }
+      }
     }
   }
   
-  return Math.abs(winding) > 0;
+  return wn !== 0;
 }
 
-// Calculate distance from point to line segment
+/**
+ * Calculate distance from point to line segment
+ * @param {THREE.Vector3} p - Test point
+ * @param {THREE.Vector3} v1 - Line segment start
+ * @param {THREE.Vector3} v2 - Line segment end
+ * @returns {number} - Distance from point to line segment
+ */
 export function distToLineSegment(p, v1, v2) {
-  const lineVec = v2.clone().sub(v1);
-  const lineLength = lineVec.length();
+  const l2 = v1.distanceToSquared(v2);
   
-  if (lineLength === 0) {
-    // The line is actually a point
-    return p.clone().sub(v1).length();
-  }
+  if (l2 === 0) return p.distanceTo(v1);
   
-  // Convert 3D point to 2D point in the XZ plane if needed
-  const p2D = p instanceof THREE.Vector2 ? p.clone() : new THREE.Vector2(p.x, p.z);
+  // Consider the line extending the segment, parameterized as v1 + t (v2 - v1)
+  // We find projection of point p onto the line. 
+  // It falls where t = [(p-v1) . (v2-v1)] / |v2-v1|^2
+  // We clamp t from [0,1] to handle points outside the segment v1-v2
   
-  // Calculate normalized projection of p onto the line
-  const pv1 = new THREE.Vector2(p2D.x - v1.x, p2D.y - v1.y);
-  const dot = pv1.x * lineVec.x + pv1.y * lineVec.y;
-  const t = Math.max(0, Math.min(1, dot / (lineLength * lineLength)));
+  const v1v2 = new THREE.Vector3().subVectors(v2, v1);
+  const pv1 = new THREE.Vector3().subVectors(p, v1);
   
-  // Calculate the closest point on the line
-  const closest = new THREE.Vector2(
-    v1.x + t * lineVec.x,
-    v1.y + t * lineVec.y
-  );
+  const t = Math.max(0, Math.min(1, pv1.dot(v1v2) / l2));
   
-  // Return the distance from p to the closest point
-  return Math.sqrt(
-    Math.pow(p2D.x - closest.x, 2) + 
-    Math.pow(p2D.y - closest.y, 2)
-  );
+  const projection = new THREE.Vector3().copy(v1).addScaledVector(v1v2, t);
+  
+  return p.distanceTo(projection);
 }
 
-// Calculate the polygon SDF for any surface
+/**
+ * Calculate signed distance to a polygon and find closest edge
+ * @param {THREE.Vector3} p - Test point
+ * @param {Array<THREE.Vector3>} polygonVertices - Array of polygon vertices
+ * @returns {Object} - Distance and edge index
+ */
 export function polygonSDF(p, polygonVertices) {
-  // This corresponds to the EdgeSDF struct in the shader
-  let result = {
-    distance: 1000000.0,
-    edgeIndex: -1
-  };
-  
-  // Convert 3D point to 2D point in the XZ plane
-  const p2D = new THREE.Vector2(p.x, p.z);
+  let minDist = Infinity;
+  let minEdge = -1;
   
   // Find closest edge
   for (let i = 0; i < polygonVertices.length - 1; i++) {
-    const v1 = polygonVertices[i];
-    const v2 = polygonVertices[i + 1];
-    const d = distToLineSegment(p2D, v1, v2);
-    
-    if (d < result.distance) {
-      result.distance = d;
-      result.edgeIndex = i;
+    const dist = distToLineSegment(p, polygonVertices[i], polygonVertices[i+1]);
+    if (dist < minDist) {
+      minDist = dist;
+      minEdge = i;
     }
   }
   
-  // Determine if inside or outside
-  const inside = isInsidePolygon(p, polygonVertices);
+  // Sign the distance based on whether the point is inside or outside
+  const sign = isInsidePolygon(p, polygonVertices) ? -1 : 1;
   
-  // Apply sign (negative inside, positive outside)
-  result.distance = inside ? -result.distance : result.distance;
-  
-  return result;
+  return {
+    distance: sign * minDist,
+    edgeIndex: minEdge
+  };
 }
 
-// Apply translation based on which edge was hit
-export function applyTranslation(pos, edgeIndex, translations) {
-  if (edgeIndex >= 0 && edgeIndex < translations.length) {
-    // Create new position to hold the result
-    const translatedPos = pos.clone();
-    
-    // Get the translation vector for this edge
-    const translation = translations[edgeIndex];
-    
-    // Apply translation
-    translatedPos.add(translation);
-    
-    return translatedPos;
-  }
+/**
+ * Apply a translation transformation
+ * @param {THREE.Vector3} pos - Position to transform
+ * @param {Array<number>} translation - Translation vector [x, y, z]
+ * @returns {THREE.Vector3} - New position after translation
+ */
+export function applyTranslation(pos, translation) {
+  return new THREE.Vector3(
+    pos.x + translation[0],
+    pos.y + translation[1],
+    pos.z + translation[2]
+  );
+}
+
+/**
+ * Apply a mirror reflection transformation
+ * @param {THREE.Vector3} pos - Position to transform
+ * @param {Array<number>} normal - Mirror normal vector [x, y, z]
+ * @returns {THREE.Vector3} - New position after reflection
+ */
+export function applyReflection(pos, normal) {
+  // Create a normalized normal vector
+  const n = new THREE.Vector3(normal[0], normal[1], normal[2]).normalize();
   
-  // If invalid edge index, return original position
-  return pos.clone();
+  // Calculate the reflection: pos - 2 * (pos · n) * n
+  const dot = pos.dot(n);
+  return new THREE.Vector3().copy(pos).sub(n.multiplyScalar(2 * dot));
 }
