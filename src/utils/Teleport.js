@@ -1,132 +1,351 @@
+// src/utils/Teleport.js
 import * as THREE from 'three';
 
-/**
- * Determine if a point is to the left of a line
- * @param {THREE.Vector3} a - Line start point
- * @param {THREE.Vector3} b - Line end point
- * @param {THREE.Vector3} p - Test point
- * @returns {boolean} - True if point is to the left of the line
- */
-export function isLeft(a, b, p) {
-  return ((b.x - a.x) * (p.z - a.z) - (b.z - a.z) * (p.x - a.x)) > 0;
-}
+class Teleport {
+  constructor() {
+    this.geometryData = null;
+    this.vertices = [];
+    this.edges = [];
+    this.epsilon = 0.0001; // Small value for floating point comparisons
+    this.lastPosition = new THREE.Vector3();
+    this.isInitialized = false;
+    this.wallHeight = 2.0; // Default wall height
+    this.enabled = true; // Flag to enable/disable teleportation
+  }
 
-/**
- * Check if a point is inside a polygon using the winding number algorithm
- * @param {THREE.Vector3} p - Test point
- * @param {Array<THREE.Vector3>} polygon - Array of polygon vertices
- * @returns {boolean} - True if point is inside the polygon
- */
-export function isInsidePolygon(p, polygon) {
-  let wn = 0; // the winding number counter
-  
-  // Loop through all edges of the polygon
-  for (let i = 0; i < polygon.length - 1; i++) {
-    // Edge from polygon[i] to polygon[i+1]
-    if (polygon[i].z <= p.z) {
-      // Start y <= P.y
-      if (polygon[i+1].z > p.z) {
-        // An upward crossing
-        if (isLeft(polygon[i], polygon[i+1], p)) {
-          // P left of edge
-          ++wn; // Have a valid up intersect
-        }
-      }
+  // Load geometry data from the geometry file
+  setGeometry(geometryData) {
+    if (!geometryData) return;
+    
+    this.geometryData = geometryData;
+    
+    // Convert vertices to THREE.Vector2 for easier calculations
+    this.vertices = this.geometryData.vertices.map(v => new THREE.Vector2(v[0], v[1]));
+    
+    // Store edges
+    this.edges = this.geometryData.edges || [];
+    
+    // Store wall height if provided
+    if (geometryData.wallHeight !== undefined) {
+      this.wallHeight = geometryData.wallHeight;
     } else {
-      // Start y > P.y (no test needed)
-      if (polygon[i+1].z <= p.z) {
-        // A downward crossing
-        if (!isLeft(polygon[i], polygon[i+1], p)) {
-          // P right of edge
-          --wn; // Have a valid down intersect
-        }
+      this.wallHeight = 2.0; // Default wall height
+    }
+    
+    // Reset position tracking
+    this.isInitialized = false;
+    
+    console.log(`Teleport: Wall height set to ${this.wallHeight}`);
+    console.log(`Teleport: Loaded ${this.vertices.length} vertices and ${this.edges.length} edges`);
+    
+    return this.geometryData;
+  }
+
+  // Set whether teleportation is enabled
+  setEnabled(enabled) {
+    this.enabled = enabled;
+    console.log(`Teleportation ${this.enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  // Get current teleportation enabled state
+  isEnabled() {
+    return this.enabled;
+  }
+
+  // Check if point is inside the polygon using ray casting algorithm
+  isPointInside(point) {
+    if (!this.vertices.length) return true;
+    
+    let inside = false;
+    
+    // Use vertices.length - 1 to skip the duplicate closing vertex if it exists
+    const effectiveLength = this.hasClosingVertex() ? this.vertices.length - 1 : this.vertices.length;
+    
+    for (let i = 0, j = effectiveLength - 1; i < effectiveLength; j = i++) {
+      const vi = this.vertices[i];
+      const vj = this.vertices[j];
+      
+      // Ray casting algorithm
+      if (((vi.y > point.y) !== (vj.y > point.y)) &&
+          (point.x < (vj.x - vi.x) * (point.y - vi.y) / (vj.y - vi.y) + vi.x)) {
+        inside = !inside;
       }
     }
+    
+    return inside;
   }
-  
-  return wn !== 0;
-}
 
-/**
- * Calculate distance from point to line segment
- * @param {THREE.Vector3} p - Test point
- * @param {THREE.Vector3} v1 - Line segment start
- * @param {THREE.Vector3} v2 - Line segment end
- * @returns {number} - Distance from point to line segment
- */
-export function distToLineSegment(p, v1, v2) {
-  const l2 = v1.distanceToSquared(v2);
-  
-  if (l2 === 0) return p.distanceTo(v1);
-  
-  // Consider the line extending the segment, parameterized as v1 + t (v2 - v1)
-  // We find projection of point p onto the line. 
-  // It falls where t = [(p-v1) . (v2-v1)] / |v2-v1|^2
-  // We clamp t from [0,1] to handle points outside the segment v1-v2
-  
-  const v1v2 = new THREE.Vector3().subVectors(v2, v1);
-  const pv1 = new THREE.Vector3().subVectors(p, v1);
-  
-  const t = Math.max(0, Math.min(1, pv1.dot(v1v2) / l2));
-  
-  const projection = new THREE.Vector3().copy(v1).addScaledVector(v1v2, t);
-  
-  return p.distanceTo(projection);
-}
+  // Check if the first and last vertices are the same (closed polygon)
+  hasClosingVertex() {
+    if (this.vertices.length < 2) return false;
+    
+    const first = this.vertices[0];
+    const last = this.vertices[this.vertices.length - 1];
+    
+    return Math.abs(first.x - last.x) < this.epsilon && 
+           Math.abs(first.y - last.y) < this.epsilon;
+  }
 
-/**
- * Calculate signed distance to a polygon and find closest edge
- * @param {THREE.Vector3} p - Test point
- * @param {Array<THREE.Vector3>} polygonVertices - Array of polygon vertices
- * @returns {Object} - Distance and edge index
- */
-export function polygonSDF(p, polygonVertices) {
-  let minDist = Infinity;
-  let minEdge = -1;
-  
-  // Find closest edge
-  for (let i = 0; i < polygonVertices.length - 1; i++) {
-    const dist = distToLineSegment(p, polygonVertices[i], polygonVertices[i+1]);
-    if (dist < minDist) {
-      minDist = dist;
-      minEdge = i;
+  // Find the closest edge to a point
+  findClosestEdge(point) {
+    if (!this.vertices.length) return -1;
+    
+    let closestEdge = -1;
+    let closestDistance = Infinity;
+    
+    // Use vertices.length - 1 to skip the duplicate closing vertex if it exists
+    const effectiveLength = this.hasClosingVertex() ? this.vertices.length - 1 : this.vertices.length;
+    
+    for (let i = 0, j = effectiveLength - 1; i < effectiveLength; j = i++) {
+      const v1 = this.vertices[j];
+      const v2 = this.vertices[i];
+      
+      // Calculate distance from point to line segment
+      const l2 = v1.distanceToSquared(v2);
+      
+      if (l2 === 0) {
+        const dist = point.distanceTo(v1);
+        if (dist < closestDistance) {
+          closestDistance = dist;
+          closestEdge = j;
+        }
+        continue;
+      }
+      
+      let t = ((point.x - v1.x) * (v2.x - v1.x) + (point.y - v1.y) * (v2.y - v1.y)) / l2;
+      t = Math.max(0, Math.min(1, t));
+      
+      const projection = new THREE.Vector2(
+        v1.x + t * (v2.x - v1.x),
+        v1.y + t * (v2.y - v1.y)
+      );
+      
+      const distance = point.distanceTo(projection);
+      
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestEdge = j;
+      }
     }
+    
+    return closestEdge;
   }
-  
-  // Sign the distance based on whether the point is inside or outside
-  const sign = isInsidePolygon(p, polygonVertices) ? -1 : 1;
-  
-  return {
-    distance: sign * minDist,
-    edgeIndex: minEdge
-  };
+
+  // Check if camera hits any edge and teleport if needed
+  checkAndTeleport(position, direction, camera) {
+    // If teleportation is disabled, just update last position and return
+    if (!this.enabled) {
+      if (this.isInitialized) {
+        this.lastPosition.copy(position);
+      } else {
+        this.lastPosition.copy(position);
+        this.isInitialized = true;
+      }
+      return false;
+    }
+    
+    if (!this.geometryData || !this.vertices.length) return false;
+    
+    // Create a 2D point from the position (ignoring Y)
+    const point2D = new THREE.Vector2(position.x, position.z);
+    
+    // Initialize if needed
+    if (!this.isInitialized) {
+      this.lastPosition.copy(position);
+      this.isInitialized = true;
+    }
+    
+    // Check if we're inside the polygon
+    const isInside = this.isPointInside(point2D);
+    
+    // Check if the camera is within the wall height range
+    const isWithinWallHeight = position.y >= 0 && position.y <= this.wallHeight;
+    
+    // If we're outside the polygon AND within the wall height, handle based on edge type
+    if (!isInside && isWithinWallHeight) {
+      // Find which edge we're closest to
+      const edgeIndex = this.findClosestEdge(point2D);
+      
+      if (edgeIndex >= 0 && edgeIndex < this.edges.length) {
+        const edge = this.edges[edgeIndex];
+        const type = edge && edge.type ? edge.type.toLowerCase() : 'none';
+        
+        console.log(`Teleport: Near edge ${edgeIndex}, type: ${type}`);
+        
+        // Apply action based on edge type
+        let handled = false;
+        
+        switch (type) {
+          case 'translation':
+            // For translation, teleport as before
+            handled = this.handleTranslation(edgeIndex, position, direction, camera);
+            break;
+          case 'mirror':
+            // For mirror, just block movement (push back)
+            position.copy(this.lastPosition);
+            handled = true;
+            break;
+          case 'affine':
+            // For affine, do nothing - let the player continue moving
+            handled = false;
+            break;
+          default:
+            // For other/unsupported types, push back
+            position.copy(this.lastPosition);
+            handled = true;
+            break;
+        }
+        
+        if (handled) {
+          // Update camera position
+          camera.setPosition(position);
+          return true;
+        }
+      } else {
+        console.warn(`Teleport: Edge index ${edgeIndex} out of bounds (edges length: ${this.edges.length})`);
+        // If edge index is invalid, just push back
+        position.copy(this.lastPosition);
+        camera.setPosition(position);
+        return true;
+      }
+    } else if (!isInside && !isWithinWallHeight) {
+      // If outside polygon but not within wall height, just push back
+      position.copy(this.lastPosition);
+      camera.setPosition(position);
+      return true;
+    } else {
+      // If we're inside, update last position
+      this.lastPosition.copy(position);
+    }
+    
+    return false;
+  }
+
+  // Handler for translation edges
+  handleTranslation(edgeIndex, position, direction, camera) {
+    const edge = this.edges[edgeIndex];
+    if (!edge || !edge.vector) return false;
+    
+    const vector = edge.vector;
+    
+    // Create a translation vector - adjusted for 2D format [x, z]
+    const translationVector = new THREE.Vector3(
+      vector[0] || 0, 
+      0,              // Y is always 0 in our 2D format
+      vector[1] || 0  // Z is now at index 1
+    );
+    
+    // Apply translation to position
+    position.add(translationVector);
+    
+    console.log(`Teleport: Applied translation [${translationVector.x}, ${translationVector.z}]`);
+    
+    return true;
+  }
+
+  // Handler for mirror edges
+  handleMirror(edgeIndex, position, direction, camera) {
+    const edge = this.edges[edgeIndex];
+    if (!edge) return false;
+    
+    let normal;
+    
+    if (edge.normal) {
+      // Use provided normal - adjusted for 2D format [x, z]
+      normal = new THREE.Vector3(
+        edge.normal[0] || 0, 
+        0,                  // Y is always 0 in our 2D format 
+        edge.normal[1] || 0 // Z is now at index 1
+      ).normalize();
+    } else {
+      // Calculate normal from vertices
+      const i = edgeIndex;
+      const j = (i + 1) % this.vertices.length;
+      
+      const vertexStart = this.vertices[i];
+      const vertexEnd = this.vertices[j];
+      
+      // Edge vector (in 2D, x-z plane)
+      const dx = vertexEnd.x - vertexStart.x;
+      const dz = vertexEnd.y - vertexStart.y;
+      
+      // Normal vector (-dz, 0, dx) - perpendicular to edge in x-z plane
+      normal = new THREE.Vector3(-dz, 0, dx).normalize();
+    }
+    
+    // Reflect direction
+    const reflectedDir = direction.clone().reflect(normal);
+    
+    // Update camera orientation to match the reflected direction
+    const rotationAxis = new THREE.Vector3().crossVectors(direction, reflectedDir).normalize();
+    const rotationAngle = direction.angleTo(reflectedDir);
+    
+    if (rotationAngle > this.epsilon) {
+      const rotationQuaternion = new THREE.Quaternion().setFromAxisAngle(rotationAxis, rotationAngle);
+      camera.getCamera().quaternion.premultiply(rotationQuaternion);
+    }
+    
+    // Slightly push away from the edge along the reflected direction
+    position.addScaledVector(reflectedDir, 0.1);
+    
+    return true;
+  }
+
+  // Handler for affine edges
+  handleAffine(edgeIndex, position, direction, camera) {
+    const edge = this.edges[edgeIndex];
+    if (!edge || !edge.transform) return false;
+    
+    const transform = edge.transform;
+    const matrix = transform.matrix || [1, 0, 0, 1];
+    const translation = transform.translation || [0, 0];
+    
+    // Create transformation matrix
+    const a = matrix[0] || 1;
+    const b = matrix[1] || 0;
+    const c = matrix[2] || 0;
+    const d = matrix[3] || 1;
+    const tx = translation[0] || 0;
+    const tz = translation[1] || 0; // This is correct for 2D [x,z] format
+    
+    // Create a 4x4 transformation matrix
+    const transformMatrix = new THREE.Matrix4().set(
+      a, 0, b, tx,
+      0, 1, 0, 0,
+      c, 0, d, tz,
+      0, 0, 0, 1
+    );
+    
+    // Save original Y position
+    const originalY = position.y;
+    
+    // Apply transformation to position
+    position.applyMatrix4(transformMatrix);
+    
+    // Restore Y position (we don't want to change height)
+    position.y = originalY;
+    
+    // Transform direction (no translation)
+    const dirMatrix = new THREE.Matrix4().set(
+      a, 0, b, 0,
+      0, 1, 0, 0,
+      c, 0, d, 0,
+      0, 0, 0, 1
+    );
+    
+    const newDirection = direction.clone().applyMatrix4(dirMatrix).normalize();
+    
+    // Update camera orientation to match the new direction
+    const rotationAxis = new THREE.Vector3().crossVectors(direction, newDirection).normalize();
+    const rotationAngle = direction.angleTo(newDirection);
+    
+    if (rotationAngle > this.epsilon && rotationAxis.lengthSq() > this.epsilon) {
+      const rotationQuaternion = new THREE.Quaternion().setFromAxisAngle(rotationAxis, rotationAngle);
+      camera.getCamera().quaternion.premultiply(rotationQuaternion);
+    }
+    
+    return true;
+  }
 }
 
-/**
- * Apply a translation transformation
- * @param {THREE.Vector3} pos - Position to transform
- * @param {Array<number>} translation - Translation vector [x, y, z]
- * @returns {THREE.Vector3} - New position after translation
- */
-export function applyTranslation(pos, translation) {
-  return new THREE.Vector3(
-    pos.x + translation[0],
-    pos.y + translation[1],
-    pos.z + translation[2]
-  );
-}
-
-/**
- * Apply a mirror reflection transformation
- * @param {THREE.Vector3} pos - Position to transform
- * @param {Array<number>} normal - Mirror normal vector [x, y, z]
- * @returns {THREE.Vector3} - New position after reflection
- */
-export function applyReflection(pos, normal) {
-  // Create a normalized normal vector
-  const n = new THREE.Vector3(normal[0], normal[1], normal[2]).normalize();
-  
-  // Calculate the reflection: pos - 2 * (pos · n) * n
-  const dot = pos.dot(n);
-  return new THREE.Vector3().copy(pos).sub(n.multiplyScalar(2 * dot));
-}
+export default Teleport;

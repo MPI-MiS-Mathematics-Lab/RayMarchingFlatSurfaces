@@ -1,0 +1,49 @@
+{
+  "vertices": [
+    [2.0, 2.0],
+    [-2.0, 2.0],
+    [-2.0, -2.0],
+    [2.0, -2.0],
+    [2.0, 2.0]
+  ],
+  "edges": [
+    { 
+      "type": "affine", 
+      "transform": {
+        "matrix": [0, -1.2, 1.2, 0],  
+        "translation": [0, 4]     
+      }
+    },
+    { 
+      "type": "affine", 
+      "transform": {
+        "matrix": [1, 0, 0, 1],  
+        "translation": [-4, 0]    
+      }
+    },
+    { 
+      "type": "affine", 
+      "transform": {
+        "matrix": [1, 0, 0, 1],  
+        "translation": [0, -4]    
+      }
+    },
+    { 
+      "type": "affine", 
+      "transform": {
+        "matrix": [1, 0, 0, 1],  
+        "translation": [4, 0]     
+      }
+    }
+  ],
+  "gluing": [1, 0, 3, 2],
+  "normals": [
+    [0, 1],
+    [-1, 0],
+    [0, -1],
+    [-1, 0]
+  ],
+  "initialPosition": [0, 0, 0],
+  "name": "Square Translation Surface",
+  "description": "A square with edges connected by pure translations, creating an infinite grid tiling of the plane"
+}

@@ -1,155 +1,150 @@
-/**
- * UI class for managing overlay information and status displays
- */
+// src/utils/UI.js
 class UI {
   constructor(container) {
     this.container = container;
     this.createElements();
   }
   
-  /**
-   * Create UI elements
-   */
   createElements() {
-    // Camera info display
+    // Create the info overlay
+    this.infoOverlay = document.querySelector('.info');
+    if (!this.infoOverlay) {
+      this.infoOverlay = this.createOverlay({
+        className: 'info',
+        top: '10px',
+        left: '10px',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        padding: '10px',
+        borderRadius: '5px',
+        zIndex: '100'
+      });
+      
+      this.infoOverlay.innerHTML = `
+        WASD - Move<br>
+        Mouse - Look<br>
+        E/Q - Up/Down<br>
+        M - Toggle Floor Plan<br>
+        Click on canvas to lock cursor
+      `;
+      
+      this.container.appendChild(this.infoOverlay);
+    }
+    
+    // Create camera info overlay
     this.cameraInfo = this.createOverlay({
-      id: 'camera-info',
-      text: 'Position: (0, 0, 0)',
-      position: 'top-left',
-      offset: { top: 60, left: 10 }
+      className: 'camera-info',
+      top: '10px',
+      right: '10px',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      padding: '10px',
+      borderRadius: '5px',
+      zIndex: '100',
+      fontSize: '12px',
+      textAlign: 'right'
     });
     
-    // Height info display
-    this.heightInfo = this.createOverlay({
-      id: 'height-info',
-      text: 'Height: 0.0',
-      position: 'top-left',
-      offset: { top: 80, left: 10 }
-    });
-    
-    // Teleport status display
+    // Create teleport status overlay
     this.teleportStatus = this.createOverlay({
-      id: 'teleport-status',
-      text: 'Teleport: Inactive',
-      position: 'top-left',
-      offset: { top: 100, left: 10 }
+      className: 'teleport-status',
+      bottom: '10px',
+      left: '10px',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      padding: '5px 10px',
+      borderRadius: '5px',
+      zIndex: '100',
+      fontSize: '12px'
     });
     
-    // Resolution display
-    this.resolutionDisplay = document.getElementById('resolution');
-    
-    // Current shader display
-    this.currentShaderDisplay = document.getElementById('current-shader');
+    // Create current shader overlay
+    this.currentShaderInfo = this.createOverlay({
+      className: 'current-shader-info',
+      bottom: '50px',
+      left: '10px',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      padding: '5px 10px',
+      borderRadius: '5px',
+      zIndex: '100',
+      fontSize: '12px'
+    });
   }
   
-  /**
-   * Create an overlay element
-   * @param {Object} options - Options for the overlay
-   * @returns {HTMLElement} - Created overlay element
-   */
   createOverlay(options) {
     const overlay = document.createElement('div');
-    overlay.id = options.id;
-    overlay.textContent = options.text;
-    overlay.style.position = 'absolute';
-    overlay.style.color = 'white';
-    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-    overlay.style.padding = '5px';
-    overlay.style.borderRadius = '3px';
-    overlay.style.fontSize = '12px';
-    overlay.style.fontFamily = 'monospace';
-    overlay.style.zIndex = '100';
+    Object.assign(overlay.style, {
+      position: 'absolute',
+      ...options
+    });
     
-    // Position the overlay
-    if (options.position === 'top-left') {
-      overlay.style.top = `${options.offset.top}px`;
-      overlay.style.left = `${options.offset.left}px`;
-    } else if (options.position === 'top-right') {
-      overlay.style.top = `${options.offset.top}px`;
-      overlay.style.right = `${options.offset.right}px`;
-    } else if (options.position === 'bottom-left') {
-      overlay.style.bottom = `${options.offset.bottom}px`;
-      overlay.style.left = `${options.offset.left}px`;
-    } else if (options.position === 'bottom-right') {
-      overlay.style.bottom = `${options.offset.bottom}px`;
-      overlay.style.right = `${options.offset.right}px`;
+    if (options.className) {
+      overlay.className = options.className;
     }
     
     this.container.appendChild(overlay);
     return overlay;
   }
   
-  /**
-   * Update camera position info
-   * @param {THREE.Vector3} position - Camera position
-   */
   updateCameraInfo(position, height) {
-    this.cameraInfo.textContent = `Position: (${position.x.toFixed(2)}, ${height.toFixed(2)}, ${position.z.toFixed(2)})`;
+    if (!this.cameraInfo) return;
+    
+    // Format position to 2 decimal places
+    const x = position.x.toFixed(2);
+    const z = position.z.toFixed(2);
+    const y = height.toFixed(2);
+    
+    this.cameraInfo.innerHTML = `
+      Position: (${x}, ${y}, ${z})<br>
+      Height: ${y}
+    `;
   }
   
-  /**
-   * Update height info
-   * @param {number} height - Camera height
-   */
   updateHeightInfo(height) {
-    this.heightInfo.textContent = `Height: ${height.toFixed(2)}`;
+    // This is already handled in updateCameraInfo
   }
   
-  /**
-   * Update teleport status
-   * @param {string} status - Teleport status
-   */
   updateTeleportStatus(status) {
-    let text = 'Teleport: ';
-    let color = 'white';
+    if (!this.teleportStatus) return;
+    
+    let text = '';
+    let color = '';
     
     switch (status) {
       case 'ready':
-        text += 'Ready';
-        color = '#4CAF50'; // Green
+        text = 'Teleport: Ready';
+        color = '#6bf';
         break;
       case 'active':
-        text += 'Active';
-        color = '#FF9800'; // Orange
+        text = 'Teleport: Active';
+        color = '#6f6';
         break;
       case 'out-of-range':
-        text += 'Out of Range';
-        color = '#F44336'; // Red
+        text = 'Teleport: Out of Range';
+        color = '#f66';
         break;
       case 'shader-teleport':
-        text += 'Shader Handled';
-        color = '#2196F3'; // Blue
+        text = 'Teleport: Handled by Shader';
+        color = '#f96';
         break;
       default:
-        text += 'Inactive';
-        color = 'white';
+        text = 'Teleport: Unknown';
+        color = '#999';
     }
     
     this.teleportStatus.textContent = text;
     this.teleportStatus.style.color = color;
   }
   
-  /**
-   * Update resolution display
-   * @param {number} width - Canvas width
-   * @param {number} height - Canvas height
-   * @param {number} pixelRatio - Device pixel ratio
-   */
   updateResolution(width, height, pixelRatio) {
-    if (this.resolutionDisplay) {
-      const renderWidth = Math.floor(width * pixelRatio);
-      const renderHeight = Math.floor(height * pixelRatio);
-      this.resolutionDisplay.textContent = `${width}×${height} (${renderWidth}×${renderHeight})`;
+    const resolutionElement = document.getElementById('resolution');
+    if (resolutionElement) {
+      const effectiveWidth = Math.round(width * pixelRatio);
+      const effectiveHeight = Math.round(height * pixelRatio);
+      resolutionElement.textContent = `${width}×${height} (${effectiveWidth}×${effectiveHeight} with ${pixelRatio}x DPR)`;
     }
   }
   
-  /**
-   * Update current shader display
-   * @param {string} name - Shader name
-   */
   updateCurrentShader(name) {
-    if (this.currentShaderDisplay) {
-      this.currentShaderDisplay.textContent = name;
+    if (this.currentShaderInfo) {
+      this.currentShaderInfo.textContent = `Surface: ${name || 'Unknown'}`;
     }
   }
 }

@@ -1,5 +1,5 @@
 export default {
-    base: '/RayMarchingFlatSurfaces/',  // Replace with your actual repository name
+    base: '/RayMarchingFlatSurfaces-main/',  // Replace with your actual repository name
     build: {
       outDir: 'dist',
       assetsDir: 'assets',

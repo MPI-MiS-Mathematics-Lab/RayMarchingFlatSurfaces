@@ -1,198 +1,192 @@
+// src/core/Engine.js
 import * as THREE from 'three';
-import Surface from '../Surface.js';
+import ShaderGenerator from './ShaderGenerator.js';
 
-/**
- * Engine class for managing Three.js scene, renderer, and surfaces
- * Simplified version without camera teleportation
- */
 class Engine {
-  /**
-   * Create a new Engine
-   * @param {HTMLElement} container - Container for the renderer
-   */
   constructor(container) {
     this.container = container;
-    this.surfaces = new Map();
-    this.currentSurface = null;
-    this.currentSurfaceId = null;
-    
-    // Create shared uniforms that will be passed to all shaders
+    this.lastTime = performance.now();
     this.uniforms = {
+      iTime: { value: 0.0 },
       iResolution: { value: new THREE.Vector2() },
-      iTime: { value: 0 },
       rayMarchCamPos: { value: new THREE.Vector3() },
       rayMarchCamFront: { value: new THREE.Vector3() },
-      rayMarchCamUp: { value: new THREE.Vector3() }
+      rayMarchCamUp: { value: new THREE.Vector3(0, 1, 0) },
+      iPixelRatio: { value: window.devicePixelRatio }
     };
     
-    // Initialize renderer and scene
+    this.shaderGenerator = new ShaderGenerator();
+    this.currentGeometryId = 'square'; // Default geometry
+    this.isShaderLoaded = false;
+    this.currentPosition = new THREE.Vector3(0, 1, 0);
+    
     this.initRenderer();
     this.initScene();
-    
-    // Track time for animations
-    this.clock = new THREE.Clock();
-    
-    console.log("Engine initialized");
+    this.initShaderGenerator();
   }
   
-  /**
-   * Initialize the WebGL renderer
-   */
+  async initShaderGenerator() {
+    try {
+      // Initialize the shader generator
+      await this.shaderGenerator.initialize();
+      
+      // Load the default geometry
+      this.loadGeometry(this.currentGeometryId);
+      
+    } catch (error) {
+      console.error("Failed to initialize shader generator:", error);
+      this.displayError(`Failed to initialize: ${error.message}`);
+    }
+  }
+  
   initRenderer() {
-    // Create WebGL renderer
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.container.appendChild(this.renderer.domElement);
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: "high-performance"
+    });
     
-    // Get container dimensions
+    this.renderer.setClearColor(0x333333);
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
-    
-    // Set renderer size
     this.renderer.setSize(width, height);
+    this.container.appendChild(this.renderer.domElement);
+    
+    // Update resolution uniform
+    this.uniforms.iResolution.value.set(
+      width * window.devicePixelRatio,
+      height * window.devicePixelRatio
+    );
   }
   
-  /**
-   * Initialize the Three.js scene
-   */
   initScene() {
-    // Create scene
-    this.scene = new THREE.Scene();
+    // Static scene for the quad with shader
+    this.staticScene = new THREE.Scene();
     
-    // Create camera (only used for rendering, not for camera position)
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    // Static camera for rendering the quad
+    this.staticCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+    this.staticCamera.position.z = 1;
     
-    // Create a plane that covers the entire screen
-    const planeGeometry = new THREE.PlaneGeometry(2, 2);
+    // Create a full-screen quad for ray marching
+    const geometry = new THREE.PlaneGeometry(2, 2);
+    this.material = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `
+        void main() {
+          gl_Position = vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        void main() {
+          gl_FragColor = vec4(0.2, 0.2, 0.2, 1.0); // Default gray color while loading
+        }
+      `
+    });
     
-    // We'll create a material later when a surface is selected
-    this.screenQuad = new THREE.Mesh(planeGeometry);
-    this.scene.add(this.screenQuad);
+    this.quad = new THREE.Mesh(geometry, this.material);
+    this.staticScene.add(this.quad);
   }
   
-  /**
-   * Register a surface with the engine
-   * @param {string} id - Unique identifier for the surface
-   * @param {Surface} surface - Surface object
-   */
-  registerSurface(id, surface) {
-    this.surfaces.set(id, surface);
-  }
-  
-  /**
-   * Register a surface from a JSON configuration
-   * @param {Object} config - Surface configuration object
-   */
-  registerSurfaceFromJSON(config) {
-    const surface = new Surface(config);
-    this.registerSurface(config.id, surface);
-  }
-  
-  /**
-   * Change to a different surface
-   * @param {string} surfaceId - ID of the surface to activate
-   * @returns {Promise<Object>} - Result of the surface change
-   */
-  async changeSurface(surfaceId) {
-    // Make sure the surface exists
-    if (!this.surfaces.has(surfaceId)) {
-      console.error(`Surface ${surfaceId} not found`);
-      return { success: false };
+  displayError(message) {
+    const errorElement = document.getElementById('error');
+    if (errorElement) {
+      errorElement.textContent = message;
+      errorElement.style.display = 'block';
     }
-    
-    // Deactivate current surface if one is active
-    if (this.currentSurface) {
-      this.currentSurface.deactivate();
-    }
-    
-    // Get the new surface
-    const surface = this.surfaces.get(surfaceId);
-    
+    console.error(message);
+  }
+  
+  async loadGeometry(geometryId) {
     try {
-      // Create material for the surface
-      const material = await surface.createMaterial(this.uniforms);
+      this.isShaderLoaded = false;
       
-      // Update the screen quad with the new material
-      this.screenQuad.material = material;
+      // Display loading indication
+      this.material.fragmentShader = `
+        void main() {
+          gl_FragColor = vec4(0.1, 0.1, 0.1, 1.0); // Darker gray while loading
+        }
+      `;
+      this.material.needsUpdate = true;
       
-      // Set as current surface
-      this.currentSurface = surface;
-      this.currentSurfaceId = surfaceId;
+      // Generate shader for the selected geometry
+      const { shader, initialPosition, description, name } = await this.shaderGenerator.generateShader(geometryId);
       
-      // Activate the new surface
-      surface.activate();
+      // Update material with the new shader
+      this.material.fragmentShader = shader;
+      this.material.needsUpdate = true;
       
-      return {
-        success: true,
-        surfaceName: surface.name,
-        initialPosition: surface.getInitialPosition()
-      };
+      // Store the current geometry ID
+      this.currentGeometryId = geometryId;
+      
+      // Set the initial position
+      if (initialPosition) {
+        this.currentPosition.set(initialPosition[0], initialPosition[1], initialPosition[2]);
+      }
+      
+      // Update the description in the UI
+      const descriptionElement = document.getElementById('geometry-description');
+      if (descriptionElement) {
+        descriptionElement.textContent = description || name;
+      }
+      
+      this.isShaderLoaded = true;
+      console.log(`Geometry '${geometryId}' loaded successfully`);
+      
+      // Hide any error messages
+      const errorElement = document.getElementById('error');
+      if (errorElement) {
+        errorElement.style.display = 'none';
+      }
+      
+      return { initialPosition };
     } catch (error) {
-      console.error(`Error changing to surface ${surfaceId}:`, error);
-      return { success: false };
+      this.displayError(`Failed to load geometry '${geometryId}': ${error.message}`);
+      console.error(`Failed to load geometry '${geometryId}':`, error);
+      return { initialPosition: [0, 1, 0] };
     }
   }
   
-  /**
-   * Update shader uniforms
-   */
-  updateShaderUniforms() {
-    // Update time uniform
-    this.uniforms.iTime.value = this.clock.getElapsedTime();
+  animate(updateCallback) {
+    // Request next frame
+    requestAnimationFrame(() => this.animate(updateCallback));
     
-    // Other uniforms will be updated in the animation loop from the camera
+    // Calculate delta time
+    const now = performance.now();
+    const delta = (now - this.lastTime) / 1000;
+    this.lastTime = now;
+    
+    // Update time uniform for shaders
+    this.uniforms.iTime.value += delta;
+    
+    // Call the update callback (for camera/input handling)
+    if (updateCallback && this.isShaderLoaded) {
+      updateCallback(delta);
+    }
+    
+    // Render using the static camera and scene (with shader quad)
+    this.renderer.render(this.staticScene, this.staticCamera);
   }
   
-  /**
-   * Get the DOM element for the renderer
-   * @returns {HTMLCanvasElement} - The canvas element
-   */
+  resize(width, height) {
+    this.renderer.setSize(width, height);
+    this.uniforms.iResolution.value.set(
+      width * window.devicePixelRatio,
+      height * window.devicePixelRatio
+    );
+    this.uniforms.iPixelRatio.value = window.devicePixelRatio;
+  }
+  
   getDomElement() {
     return this.renderer.domElement;
   }
   
-  /**
-   * Start the animation loop
-   * @param {Function} updateCallback - Function to call before rendering each frame
-   */
-  animate(updateCallback) {
-    const animate = () => {
-      // Request next frame
-      requestAnimationFrame(animate);
-      
-      // Call the update callback
-      if (updateCallback) {
-        const delta = this.clock.getDelta();
-        updateCallback(delta);
-      }
-      
-      // Update uniforms
-      this.updateShaderUniforms();
-      
-      // Update current surface if one is active
-      if (this.currentSurface) {
-        this.currentSurface.update(this.clock.getDelta());
-      }
-      
-      // Render the scene
-      this.renderer.render(this.scene, this.camera);
-    };
-    
-    // Start the animation loop
-    animate();
+  getCurrentGeometryId() {
+    return this.currentGeometryId;
   }
   
-  /**
-   * Handle renderer resize
-   * @param {number} width - New width
-   * @param {number} height - New height
-   */
-  resize(width, height) {
-    // Update renderer size
-    this.renderer.setSize(width, height);
-    
-    // Update resolution uniform
-    this.uniforms.iResolution.value.set(width, height);
+  getInitialPosition() {
+    return this.currentPosition;
   }
 }
 

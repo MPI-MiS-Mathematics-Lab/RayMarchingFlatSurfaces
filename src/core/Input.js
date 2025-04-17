@@ -1,189 +1,163 @@
+// src/core/Input.js
 import * as THREE from 'three';
 
-/**
- * Input handler for camera movement
- */
 class Input {
-  /**
-   * Create an input handler
-   * @param {HTMLElement} domElement - DOM element for events
-   * @param {Camera} camera - Camera object to control
-   */
   constructor(domElement, camera) {
     this.domElement = domElement;
     this.camera = camera;
     
-    // Movement keys
-    this.keys = {
-      forward: false,
-      backward: false,
-      left: false,
-      right: false,
-      up: false,
-      down: false
-    };
+    // Movement state
+    this.moveForward = false;
+    this.moveBackward = false;
+    this.moveLeft = false;
+    this.moveRight = false;
+    this.moveUp = false;
+    this.moveDown = false;
+    this.shiftPressed = false;
+    this.rotationQuaternion = new THREE.Quaternion();
+    this.isPointerLocked = false;
     
-    // Mouse state
-    this.mouse = {
-      x: 0,
-      y: 0,
-      locked: false
-    };
+    // Movement settings
+    this.movementSpeed = 3.0;
+    this.verticalSpeed = 1.5;
+    this.rotationSpeed = 0.002;
     
-    // Movement speeds
-    this.movementSpeed = 2.0; // Units per second
-    this.verticalSpeed = 1.0; // Units per second
-    this.rotationSpeed = 2.0; // Radians per pixel
-    
-    // Setup event listeners
     this.setupEventListeners();
-    
-    console.log('Input handler initialized');
   }
   
-  /**
-   * Setup event listeners
-   */
   setupEventListeners() {
-    // Keyboard events
-    document.addEventListener('keydown', this.onKeyDown.bind(this));
-    document.addEventListener('keyup', this.onKeyUp.bind(this));
+    // Mouse movement handler
+    document.addEventListener('mousemove', this.onMouseMove.bind(this));
     
-    // Mouse events
+    // Pointer lock handlers
     this.domElement.addEventListener('click', () => {
-      if (!this.mouse.locked) {
+      if (!this.isPointerLocked) {
         this.domElement.requestPointerLock();
       }
     });
     
     document.addEventListener('pointerlockchange', () => {
-      this.mouse.locked = document.pointerLockElement === this.domElement;
+      this.isPointerLocked = document.pointerLockElement === this.domElement;
     });
     
-    document.addEventListener('mousemove', this.onMouseMove.bind(this));
+    // Keyboard controls
+    document.addEventListener('keydown', this.onKeyDown.bind(this));
+    document.addEventListener('keyup', this.onKeyUp.bind(this));
   }
   
-  /**
-   * Handle mouse movement
-   * @param {MouseEvent} event - Mouse movement event
-   */
   onMouseMove(event) {
-    if (!this.mouse.locked) return;
+    if (!this.isPointerLocked) return;
     
-    // Make sure the camera object is valid
-    if (!this.camera) return;
+    const movementX = event.movementX || 0;
+    const movementY = event.movementY || 0;
     
-    // Get movement deltas with sensitivity applied
-    const sensitivity = 0.002;
-    const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
-    const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
-    const deltaX = movementX * sensitivity;
-    const deltaY = movementY * sensitivity;
-    
-    // Make sure the camera has rotation methods
-    if (typeof this.camera.rotateY === 'function' && typeof this.camera.rotateX === 'function') {
-      // Apply rotation to camera
-      this.camera.rotateY(-deltaX);
-      this.camera.rotateX(-deltaY);
-    } else {
-      console.warn('Camera does not have rotation methods');
+    // Apply yaw rotation (around global Y axis)
+    if (movementX !== 0) {
+      this.rotationQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -movementX * this.rotationSpeed);
+      this.camera.quaternion.premultiply(this.rotationQuaternion);
     }
+    
+    // Apply pitch rotation (around local X axis)
+    if (movementY !== 0) {
+      // Get the camera's right vector (local X axis)
+      const rightVector = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+      this.rotationQuaternion.setFromAxisAngle(rightVector, -movementY * this.rotationSpeed);
+      this.camera.quaternion.premultiply(this.rotationQuaternion);
+    }
+    
+    // Normalize the quaternion to prevent drift
+    this.camera.quaternion.normalize();
   }
   
-  /**
-   * Handle key down event
-   * @param {KeyboardEvent} event - Key down event
-   */
   onKeyDown(event) {
-    this.setKey(event.code, true);
+    if (!this.isPointerLocked) return;
+    
+    switch (event.code) {
+      case 'KeyW': this.moveForward = true; break;
+      case 'KeyS': this.moveBackward = true; break;
+      case 'KeyA': this.moveLeft = true; break;
+      case 'KeyD': this.moveRight = true; break;
+      case 'KeyE': this.moveUp = true; break;
+      case 'KeyQ': this.moveDown = true; break;
+      case 'ShiftLeft': 
+      case 'ShiftRight': 
+        this.shiftPressed = true; 
+        break;
+    }
   }
   
-  /**
-   * Handle key up event
-   * @param {KeyboardEvent} event - Key up event
-   */
   onKeyUp(event) {
-    this.setKey(event.code, false);
-  }
-  
-  /**
-   * Set key state
-   * @param {string} code - Key code
-   * @param {boolean} pressed - Is the key pressed
-   */
-  setKey(code, pressed) {
-    switch (code) {
-      case 'KeyW':
-        this.keys.forward = pressed;
-        break;
-      case 'KeyS':
-        this.keys.backward = pressed;
-        break;
-      case 'KeyA':
-        this.keys.left = pressed;
-        break;
-      case 'KeyD':
-        this.keys.right = pressed;
-        break;
-      case 'KeyE':
-        this.keys.up = pressed;
-        break;
-      case 'KeyQ':
-        this.keys.down = pressed;
+    switch (event.code) {
+      case 'KeyW': this.moveForward = false; break;
+      case 'KeyS': this.moveBackward = false; break;
+      case 'KeyA': this.moveLeft = false; break;
+      case 'KeyD': this.moveRight = false; break;
+      case 'KeyE': this.moveUp = false; break;
+      case 'KeyQ': this.moveDown = false; break;
+      case 'ShiftLeft': 
+      case 'ShiftRight': 
+        this.shiftPressed = false; 
         break;
     }
   }
   
-  /**
-   * Update camera position based on input
-   * @param {number} delta - Time since last update in seconds
-   * @returns {boolean} - True if position was updated
-   */
   update(delta) {
-    if (!this.camera) return false;
+    if (!this.isPointerLocked) return false;
     
-    let moved = false;
-    
-    // Make sure camera has necessary methods
-    if (typeof this.camera.moveForward !== 'function' || 
-        typeof this.camera.moveRight !== 'function') {
-      console.warn('Camera does not have movement methods');
-      return false;
+    // Handle horizontal movement (WASD)
+    if (this.moveForward || this.moveBackward || this.moveLeft || this.moveRight) {
+      // Create input vector based on which keys are pressed
+      const inputDir = new THREE.Vector3(
+        (this.moveRight ? 1 : 0) - (this.moveLeft ? 1 : 0),
+        0,
+        (this.moveBackward ? 1 : 0) - (this.moveForward ? 1 : 0)
+      );
+      
+      // Only proceed if there's input
+      if (inputDir.lengthSq() > 0) {
+        // Normalize to prevent faster diagonal movement
+        inputDir.normalize();
+        
+        // Get the camera's forward and right vectors
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+        
+        // Project these vectors onto the horizontal plane
+        forward.y = 0;
+        right.y = 0;
+        
+        // Normalize them (critical to maintain consistent speed)
+        if (forward.lengthSq() > 0.001) forward.normalize();
+        if (right.lengthSq() > 0.001) right.normalize();
+        
+        // Calculate movement vector based on input and camera orientation
+        const moveVector = new THREE.Vector3(0, 0, 0);
+        moveVector.addScaledVector(forward, -inputDir.z); // Forward/backward
+        moveVector.addScaledVector(right, inputDir.x); // Left/right
+        
+        // Apply speed and time factors
+        const speed = this.shiftPressed ? this.movementSpeed * 2 : this.movementSpeed;
+        moveVector.multiplyScalar(speed * delta);
+        
+        // Apply movement to camera position
+        this.camera.position.add(moveVector);
+        
+        return true;
+      }
     }
     
-    // Calculate move distance based on speed and delta time
-    const moveDistance = this.movementSpeed * delta;
-    
-    // Apply movement
-    if (this.keys.forward) {
-      this.camera.moveForward(moveDistance);
-      moved = true;
-    }
-    if (this.keys.backward) {
-      this.camera.moveForward(-moveDistance);
-      moved = true;
-    }
-    if (this.keys.left) {
-      this.camera.moveRight(-moveDistance);
-      moved = true;
-    }
-    if (this.keys.right) {
-      this.camera.moveRight(moveDistance);
-      moved = true;
-    }
-    
-    return moved;
+    return false;
   }
   
-  /**
-   * Get vertical movement state
-   * @returns {Object} - Object with moveUp and moveDown booleans
-   */
   getVerticalMovement() {
     return {
-      moveUp: this.keys.up,
-      moveDown: this.keys.down
+      moveUp: this.moveUp,
+      moveDown: this.moveDown
     };
+  }
+  
+  isLocked() {
+    return this.isPointerLocked;
   }
 }
 

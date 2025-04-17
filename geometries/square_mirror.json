@@ -1,7 +1,7 @@
 {
-    "id": "square",
-    "name": "Square Room",
-    "description": "A simple square room with teleportation on edges",
+    "id": "square_mirror",
+    "name": "Square Room with Mirrors",
+    "description": "A simple square room with mirrors on edges",
     "vertices": [
       [2.0, 2.0],
       [-2.0, 2.0],
@@ -11,24 +11,20 @@
     ],
     "edges": [
       {
-        "id": 0,
-        "type": "translation",
-        "vector": [0.0, 0.0, -4.0]
+        "type": "mirror",
+        "normal": [0.0, 0.0, 1.0]
       },
       {
-        "id": 1,
-        "type": "translation",
-        "vector": [4.0, 0.0, 0.0]
+        "type": "mirror",
+        "normal": [-1.0, 0.0, 0.0]
       },
       {
-        "id": 2,
-        "type": "translation",
-        "vector": [0.0, 0.0, 4.0]
+        "type": "mirror",
+        "normal": [0.0, 0.0, -1.0]
       },
       {
-        "id": 3,
-        "type": "translation",
-        "vector": [-4.0, 0.0, 0.0]
+        "type": "mirror",
+        "normal": [1.0, 0.0, 0.0]
       }
     ],
     "initialPosition": [0.0, 1.0, 0.0],
@@ -37,16 +33,14 @@
     "teleportHeightRange": [0.0, 2.0],
     "decorations": [
       {
-        "type": "sphere",
-        "position": [0.0, 1.0, 0.0],
+        "type": "hollow_cube",
+        "position": [0.0, 0.0, 0.0],
         "radius": 0.13,
-        "animation": {
-          "enabled": false
-        }
+        "inner_ratio": 0.77
       },
       {
         "type": "sphere",
-        "position": [1.618, 1.0, 0.0],
+        "position": [1.618, 0.0, 0.0],
         "radius": 0.07,
         "animation": {
           "enabled": true,

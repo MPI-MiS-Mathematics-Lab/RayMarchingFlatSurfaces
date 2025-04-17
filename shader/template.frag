@@ -11,12 +11,22 @@ const float tMax = 100.0;
 const float b = 2.0;
 const float wall_height = 2.0;
 
-// Identity matrix definition
 const mat3 IDENTITY_MAT = mat3(
     1.0, 0.0, 0.0,
     0.0, 1.0, 0.0,
     0.0, 0.0, 1.0
 );
+
+mat3 rotMat(vec3 axis, float angle) {
+    axis = normalize(axis);
+    float s = sin(angle);
+    float c = cos(angle);
+    float oc = 1.0 - c;
+    
+    return mat3(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,
+                oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,
+                oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c);
+}
 
 // Define the polygon vertices
 const int N = {{N}};
@@ -29,16 +39,6 @@ const int NUM_WALLS = {{NUM_WALLS}};
 // Transformation arrays - will contain either transformVectors or mirrorNormals
 {{TRANSFORMATION_ARRAYS}}
 
-mat3 rotMat(vec3 axis, float angle) {
-    axis = normalize(axis);
-    float s = sin(angle);
-    float c = cos(angle);
-    float oc = 1.0 - c;
-    
-    return mat3(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,
-                oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,
-                oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c);
-}
 
 // signed distance functions
 float sdBox(vec3 p, vec3 b) {
@@ -198,7 +198,7 @@ void main() {
         float sceneDist = sdf(pos);
         // Standard ray marching step
         pos = pos + sceneDist * ray;
-        
+
         // Check if we hit something
         if (abs(sceneDist) < eps) {
             // Determine what we hit
@@ -225,6 +225,7 @@ void main() {
         }
 
         t += sceneDist;
+        // {{VERTICAL_COMPONENT}}
 
         // Check if we've gone too far
         if (t > tMax) {
@@ -244,7 +245,7 @@ void main() {
         } else {
             // Wall hit - this shouldn't normally be visible as we teleport through walls
             // But useful for debugging
-            color = vec3(0.9, 0.3, 0.1); // Bright orange to indicate a wall was directly hit
+            color = vec3(0.9, 0.9, 0.9); // Bright orange to indicate a wall was directly hit
         }
     }
     

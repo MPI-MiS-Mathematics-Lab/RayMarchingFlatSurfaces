@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ray Marching on Locally Flat Surfaces</title>
+  <title>Ray Marching Renderer</title>
   <style>
     body {
       margin: 0;
@@ -91,46 +91,112 @@
       color: #ccc;
     }
     
-    .shader-selector {
+    .geometry-selector {
       margin: 15px 0;
-      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .geometry-selector select {
       background-color: #444;
-      border-radius: 5px;
-    }
-    
-    select {
-      padding: 8px;
-      background-color: #555;
       color: white;
-      border: none;
+      padding: 8px;
       border-radius: 4px;
+      border: 1px solid #555;
       font-family: monospace;
-      cursor: pointer;
+      min-width: 200px;
     }
     
-    .current-shader {
-      margin-top: 10px;
+    .geometry-info {
       font-size: 14px;
-      color: #ccc;
+      color: #aaa;
+      text-align: center;
+      max-width: 500px;
+    }
+    
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 24px;
+    }
+    
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #444;
+      transition: .4s;
+      border-radius: 24px;
+    }
+    
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .toggle-slider {
+      background-color: #5a8;
+    }
+    
+    input:checked + .toggle-slider:before {
+      transform: translateX(26px);
+    }
+    
+    .toggle-label {
+      font-size: 14px;
+      color: #ddd;
     }
   </style>
 </head>
 <body>
-  <h1>Ray Marching on Locally Flat Surfaces</h1>
+  <h1>Ray Marching Renderer</h1>
   
-  <div class="shader-selector">
-    <label for="shader-select">Select Surface: </label>
-    <select id="shader-select">
-      <option value="basic">Free Roaming Scene</option>
-      <option value="L">L Surface</option>
-      <option value="double_pentagon_mirror">Double Pentagon Mirror</option>
-      <option value="double_pentagon_translation">Double Pentagon Translation</option>
+  <div class="geometry-selector">
+    <label for="geometry-select">Select Geometry:</label>
+    <select id="geometry-select">
+      <option value="square">Square Room</option>
+      <option value="l_shape">L-Shaped Room</option>
+      <option value="pentagon">Pentagon Translation</option>
+      <option value="pentagon_mirror">Pentagon Mirror</option>
     </select>
-    <div class="current-shader">Current: <span id="current-shader">Free Roaming Scene</span></div>
+    <div id="geometry-description" class="geometry-info">A simple square room with teleportation on edges</div>
   </div>
   
-  <h2>Ray Marching Renderer</h2>
-  <div class="resolution-display">Resolution: <span id="resolution">800×600</span></div>
+  <div class="toggle-container">
+    <label class="toggle-switch">
+      <input type="checkbox" id="teleport-toggle" checked>
+      <span class="toggle-slider"></span>
+    </label>
+    <div class="toggle-label">Enable Teleportation</div>
+  </div>
+  
+  <div class="resolution-display">Resolution: <span id="resolution">800×600</span> (<span id="actual-resolution">800×600</span> pixels, Pixel Ratio: <span id="pixel-ratio">1</span>)</div>
   
   <div class="canvas-container">
     <div class="info">
@@ -138,6 +204,9 @@
       Mouse - Look<br>
       E/Q - Up/Down<br>
       Click on canvas to lock cursor
+    </div>
+    <div id="teleport-status" style="position: absolute; top: 10px; right: 80px; background-color: rgba(0, 0, 0, 0.5); color: #5a8; padding: 5px; border-radius: 4px; font-size: 12px;">
+      Teleport: ON
     </div>
     <div id="error"></div>
     <!-- Canvas will be inserted here by Three.js -->

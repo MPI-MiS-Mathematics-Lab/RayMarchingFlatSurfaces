@@ -1,7 +1,7 @@
-// src/utils/SimpleFloorPlan.js
+// src/core/MinimalFloorPlan.js
 import * as THREE from 'three';
 
-class SimpleFloorPlan {
+class MinimalFloorPlan {
   constructor(container) {
     this.container = container;
     this.svgNS = "http://www.w3.org/2000/svg";
@@ -25,7 +25,7 @@ class SimpleFloorPlan {
     this.floorPlanContainer.style.borderRadius = '5px';
     this.floorPlanContainer.style.zIndex = '100';
     this.floorPlanContainer.style.overflow = 'hidden';
-    this.floorPlanContainer.style.border = '1px solid #666'; // Added border for visibility
+    this.floorPlanContainer.style.border = '1px solid #666'; // Add border for visibility
     
     // Create SVG
     this.svg = document.createElementNS(this.svgNS, 'svg');
@@ -81,21 +81,23 @@ class SimpleFloorPlan {
     try {
       console.log(`Loading geometry: ${geometryId}`);
       
-      // Corrected path to match file structure
-      const path = `geometries/${geometryId}.json`;
+      // Corrected path to match your file structure
+      const path = `../../geometries/${geometryId}.json`;
+      console.log(`Fetching from: ${path}`);
       
-      // Direct load from JSON file
+      // Fetch JSON file
       const response = await fetch(path);
       if (!response.ok) {
-        throw new Error(`Failed to load geometry data: ${response.statusText}`);
+        throw new Error(`Failed to load geometry: ${response.statusText}`);
       }
       
       const geometryData = await response.json();
-      console.log(`Loaded geometry with ${geometryData.vertices.length} vertices`);
+      console.log(`Loaded geometry data with ${geometryData.vertices ? geometryData.vertices.length : 0} vertices`);
+      
       this.updatePolygon(geometryData);
       return geometryData;
-    } catch (error) {
-      console.error('Error loading geometry JSON:', error);
+    } catch (error) {f
+      console.error('Error loading floor plan geometry:', error);
       return null;
     }
   }
@@ -127,17 +129,26 @@ class SimpleFloorPlan {
     const height = maxY - minY;
     const size = Math.max(width, height);
     
+    console.log(`Bounds: [${minX}, ${minY}] to [${maxX}, ${maxY}]`);
+    console.log(`Center: [${centerX}, ${centerY}], Size: ${size}`);
+    
     // Calculate scale to fit in the container with some padding
     const svgRect = this.svg.getBoundingClientRect();
-    const scale = Math.min(svgRect.width, svgRect.height) * 0.8 / size;
+    this.svgWidth = svgRect.width;
+    this.svgHeight = svgRect.height;
+    const scale = Math.min(this.svgWidth, this.svgHeight) * 0.8 / size;
+    
+    console.log(`SVG dimensions: ${this.svgWidth}x${this.svgHeight}, Scale: ${scale}`);
     
     // Update polygon points
     const pointsStr = vertices.map(v => {
       // Center and scale the coordinates
-      const x = (v[0] - centerX) * scale + svgRect.width / 2;
-      const y = (v[1] - centerY) * scale + svgRect.height / 2;
+      const x = (v[0] - centerX) * scale + this.svgWidth / 2;
+      const y = (v[1] - centerY) * scale + this.svgHeight / 2;
       return `${x},${y}`;
     }).join(' ');
+    
+    console.log(`Setting polygon points: ${pointsStr.substring(0, 100)}...`);
     
     this.polygon.setAttribute('points', pointsStr);
     
@@ -145,8 +156,6 @@ class SimpleFloorPlan {
     this.centerX = centerX;
     this.centerY = centerY;
     this.scale = scale;
-    this.svgWidth = svgRect.width;
-    this.svgHeight = svgRect.height;
   }
   
   updateCameraPosition(position, frontVector) {
@@ -190,4 +199,4 @@ class SimpleFloorPlan {
   }
 }
 
-export default SimpleFloorPlan;
+export default MinimalFloorPlan;
