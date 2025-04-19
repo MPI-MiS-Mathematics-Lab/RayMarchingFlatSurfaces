@@ -4,7 +4,7 @@
   "description": "An L-shaped room with teleportation between edges",
   "initialPosition": [0.0, 0.0, 0.0],
   "wallHeight": 2.0,
-  "vertical_component": "circle",
+  "vertical_component": "line",
   "vertical_wrap_amount": 4.0,
   "vertices": [
     [2.0, 0.0],
