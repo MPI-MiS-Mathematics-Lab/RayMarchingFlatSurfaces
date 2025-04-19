@@ -2,7 +2,7 @@
 
 A visual exploration of ray marching techniques on various geometric surfaces, including translation surfaces, mirror rooms, and cube surfaces.
 
-![Ray Marching Example](placeholder-for-main-visualization.png)
+![Ray Marching Example](screenshot.png)
 
 ## Overview
 
@@ -17,7 +17,7 @@ This project implements ray marching algorithms using WebGL shaders to visualize
 - **Floor Plan View**: View your current position with an overhead map
 - **Responsive Design**: Adaptable to different screen sizes with resolution controls
 
-![Floor Plan Example](placeholder-for-floor-plan.png)
+![Floor Plan Example](floorplan.png)
 
 ## Getting Started
 
