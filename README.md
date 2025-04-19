@@ -13,7 +13,7 @@ This project implements ray marching algorithms using WebGL shaders to visualize
 - **Multiple Geometry Types**: Explore various mathematical surfaces including translation surfaces, mirror rooms, L-shapes, and more
 - **Interactive Camera**: Navigate through the generated spaces using intuitive camera controls
 - **Real-time Visualization**: Experience smooth, real-time rendering of complex geometries
-- **Teleportation System**: Seamlessly move between connected spaces
+- **Teleportation System**: the camera follows the geometry of the underlying surface
 - **Floor Plan View**: View your current position with an overhead map
 - **Responsive Design**: Adaptable to different screen sizes with resolution controls
 
@@ -89,11 +89,12 @@ For flat surfaces and translation/mirror spaces, this method allows for accurate
 
 ## Implemented Geometries
 
-- **Basic Square Room**: Simple square room for demonstration purposes
 - **Double Pentagon (Mirror)**: Pentagon surface with mirror reflections
 - **Double Pentagon (Translation)**: Pentagon surface with translation mapping
 - **L-shape**: L-shaped domain with different boundary conditions
-- **L-unified**: L-shaped domain with unified boundary transformations
+- **Cube**: surface of a cube times a Euclidean height component
+...
+
 
 ## Adding New Geometries
 
@@ -110,6 +111,10 @@ To add a new geometry:
 - [ ] Enhanced boundary visualizations
 - [ ] Performance optimizations for complex geometries
 - [ ] Mobile touch controls support
+
+## Bugs
+
+- [ ] Currently matrices in the affine case (see cube for example) are not the ones one would expect. The linear parts are somehow inverted. This will likely be fixed if we stop projecting the geomeries in the xz plane but instead in the xy plane which is more natural.
 
 ## Contributing
 
