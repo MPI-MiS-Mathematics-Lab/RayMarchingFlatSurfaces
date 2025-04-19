@@ -133,7 +133,7 @@ class ShaderGenerator {
     
     // Apply translation - shorten vector slightly to prevent getting stuck
     if (destWallIdx >= 0 && destWallIdx < NUM_WALLS) {
-        pos += (1.0 - 3.0*eps) * transformVectors[wallIdx];
+        pos += transformVectors[wallIdx] - 3.0 * eps * wallNormals[destWallIdx];
     }`;
         break;
         
@@ -147,7 +147,7 @@ class ShaderGenerator {
     
     // Apply mirror reflection
     if (destWallIdx >= 0 && destWallIdx < NUM_WALLS) {
-        vec3 normal = mirrorNormals[wallIdx];
+        vec3 normal = wallNormals[wallIdx];
         // Only reflect the ray direction (not the position)
         ray = ray - 2.0 * dot(ray, normal) * normal;
         // Push slightly away from the surface along the reflected ray direction
@@ -162,26 +162,26 @@ class ShaderGenerator {
         transformArraysCode += this.generateNormalsArray(normals, numWalls);
         
         transformationCode = `
-    // Get the destination wall ID from the gluing vector
-    int destWallIdx = gluingVector[wallIdx];
-    
-    // Apply affine transformation
-    if (destWallIdx >= 0 && destWallIdx < NUM_WALLS) {
-        // Convert to homogeneous coordinates
-        vec4 posHomogeneous = vec4(pos, 1.0);
-        vec4 rayHomogeneous = vec4(ray, 0.0); // Direction vectors use w=0
-        
-        // Apply transformation matrices
-        posHomogeneous = affineMatrices[wallIdx] * posHomogeneous;
-        rayHomogeneous = affineMatrices[wallIdx] * rayHomogeneous;
-        
-        // Convert back from homogeneous coordinates
-        pos = posHomogeneous.xyz;
-        ray = normalize(rayHomogeneous.xyz);
-        
-        // Push slightly away from the surface along the new ray direction to avoid re-intersection
-        pos += 5.0 * eps * ray;
-    }`;
+          // Get the destination wall ID from the gluing vector
+          int destWallIdx = gluingVector[wallIdx];
+          
+          // Apply affine transformation using 2x2 matrix + translation
+          if (destWallIdx >= 0 && destWallIdx < NUM_WALLS) {
+              // Apply 2x2 matrix to x and z components
+              vec2 newXZ = transformMatrices[wallIdx] * vec2(pos.x, pos.z) + translateVectors[wallIdx];
+              
+              // Apply same transformation to ray direction
+              vec2 newRayXZ = transformMatrices[wallIdx] * vec2(ray.x, ray.z);
+              
+              // Update position and ray
+              pos = vec3(newXZ.x, pos.y, newXZ.y);
+              ray = normalize(vec3(newRayXZ.x, ray.y, newRayXZ.y));
+              
+              // Push slightly away from the destination wall surface along its normal
+              // Use negative normal since we want to push INTO the geometry (away from the wall)
+              pos -= 3.0 * eps * wallNormals[destWallIdx];        
+              // pos += eps * 3.0 * ray;
+              }`;
         break;
         
       default:
@@ -195,7 +195,7 @@ class ShaderGenerator {
 
   generateNormalsArray(normals, numWalls) {
     let code = `// Normal vectors for each wall\n`;
-    code += `const vec3 mirrorNormals[NUM_WALLS] = vec3[NUM_WALLS](\n`;
+    code += `const vec3 wallNormals[NUM_WALLS] = vec3[NUM_WALLS](\n`;
     
     code += normals.map(normal => {
       // Convert 2D normal [x, z] to 3D [x, 0, z]
@@ -225,40 +225,85 @@ class ShaderGenerator {
     return code;
   }
 
-  generateAffineArrays(edges, numWalls) {
-    // Generate the transformation matrices
-    let code = `// Affine transformation matrices for each wall\n`;
-    code += `const mat4 affineMatrices[NUM_WALLS] = mat4[NUM_WALLS](\n`;
+  // generateAffineArrays(edges, numWalls) {
+  //   // Generate the transformation matrices
+  //   let code = `// Affine transformation matrices for each wall\n`;
+  //   code += `const mat4 affineMatrices[NUM_WALLS] = mat4[NUM_WALLS](\n`;
     
-    code += edges.map(edge => {
-      // Default to identity matrix if no transformation is specified
-      let a = 1, b = 0, c = 0, d = 1;  // Default identity 2×2 matrix
-      let tx = 0, tz = 0;              // Default zero translation
+  //   code += edges.map(edge => {
+  //     // Default to identity matrix if no transformation is specified
+  //     let a = 1, b = 0, c = 0, d = 1;  // Default identity 2×2 matrix
+  //     let tx = 0, tz = 0;              // Default zero translation
       
-      // Extract transformation from edge data
-      if (edge.transform && edge.transform.matrix) {
-        [a, b, c, d] = edge.transform.matrix;
-      }
+  //     // Extract transformation from edge data
+  //     if (edge.transform && edge.transform.matrix) {
+  //       [a, b, c, d] = edge.transform.matrix;
+  //     }
       
-      if (edge.transform && edge.transform.translation) {
-        // Get the 2D translation and use it for x,z components (leaving y as 0)
-        [tx, tz] = edge.transform.translation;
-      }
+  //     if (edge.transform && edge.transform.translation) {
+  //       // Get the 2D translation and use it for x,z components (leaving y as 0)
+  //       [tx, tz] = edge.transform.translation;
+  //     }
       
-      // Format the 4×4 matrix for GLSL - extend the 2×2 matrix to 3D space
-      // The matrix maps x->x, z->z, and keeps y unchanged
-      return `    mat4(
-        ${a.toFixed(8)}, 0.0, ${b.toFixed(8)}, ${tx.toFixed(8)},
-        0.0, 1.0, 0.0, 0.0,
-        ${c.toFixed(8)}, 0.0, ${d.toFixed(8)}, ${tz.toFixed(8)},
-        0.0, 0.0, 0.0, 1.0
-      )`;
-    }).join(',\n');
+  //     // Format the 4×4 matrix for GLSL - extend the 2×2 matrix to 3D space
+  //     // The matrix maps x->x, z->z, and keeps y unchanged
+  //     return `    mat4(
+  //       ${a.toFixed(8)}, 0.0, ${b.toFixed(8)}, ${tx.toFixed(8)},
+  //       0.0, 1.0, 0.0, 0.0,
+  //       ${c.toFixed(8)}, 0.0, ${d.toFixed(8)}, ${tz.toFixed(8)},
+  //       0.0, 0.0, 0.0, 1.0
+  //     )`;
+  //   }).join(',\n');
     
-    code += '\n);\n\n';
+  //   code += '\n);\n\n';
     
-    return code;
-  }
+  //   return code;
+  // }
+  // Modified generateAffineArrays method in ShaderGenerator.js
+
+generateAffineArrays(edges, numWalls) {
+  // Generate the transformation matrices and translations separately
+  let code = `// 2x2 transformation matrices for each wall\n`;
+  code += `const mat2 transformMatrices[NUM_WALLS] = mat2[NUM_WALLS](\n`;
+  
+  code += edges.map(edge => {
+    // Default to identity matrix if no transformation is specified
+    let a = 1, b = 0, c = 0, d = 1;  // Default identity 2×2 matrix
+    
+    // Extract transformation from edge data
+    if (edge.transform && edge.transform.matrix) {
+      [a, b, c, d] = edge.transform.matrix;
+    }
+    
+    // Format the 2×2 matrix for GLSL
+    return `    mat2(
+      ${a.toFixed(8)}, ${b.toFixed(8)},
+      ${c.toFixed(8)}, ${d.toFixed(8)}
+    )`;
+  }).join(',\n');
+  
+  code += '\n);\n\n';
+  
+  // Add translation vectors array
+  code += `// Translation vectors for each wall\n`;
+  code += `const vec2 translateVectors[NUM_WALLS] = vec2[NUM_WALLS](\n`;
+  
+  code += edges.map(edge => {
+    // Default to zero translation
+    let tx = 0, tz = 0;
+    
+    if (edge.transform && edge.transform.translation) {
+      // Get the 2D translation vector
+      [tx, tz] = edge.transform.translation;
+    }
+    
+    return `    vec2(${tx.toFixed(8)}, ${tz.toFixed(8)})`;
+  }).join(',\n');
+  
+  code += '\n);\n\n';
+  
+  return code;
+}
 
   generateDecorationsCode(decorations) {
     // Start the function

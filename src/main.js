@@ -60,8 +60,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Handle the teleport toggle
   const teleportToggle = document.getElementById('teleport-toggle');
   if (teleportToggle) {
-    // Initialize teleport to match the toggle's initial state
-    teleport.setEnabled(teleportToggle.checked);
+    // Always initialize teleport to OFF (false), regardless of toggle state
+    teleportToggle.checked = false;
+    teleport.setEnabled(false);
     
     // Update teleport status indicator
     const updateTeleportStatus = (enabled) => {
@@ -72,8 +73,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     };
     
-    // Initialize status
-    updateTeleportStatus(teleportToggle.checked);
+    // Initialize status to OFF
+    updateTeleportStatus(false);
     
     // Add event listener for toggle changes
     teleportToggle.addEventListener('change', (event) => {
@@ -233,7 +234,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     engine.uniforms.rayMarchCamFront.value.copy(viewInfo.front);
     engine.uniforms.rayMarchCamUp.value.copy(viewInfo.up);
     
-    // Update floor plan with camera position
+    // Ensure we always update the floor plan with the latest camera position and front vector
     floorPlan.updateCameraPosition(viewInfo.position, viewInfo.front);
     
     // Update position display

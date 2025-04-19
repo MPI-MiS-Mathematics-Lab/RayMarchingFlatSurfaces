@@ -9,13 +9,15 @@ uniform vec3 rayMarchCamUp;
 const float eps = 0.00001;
 const float tMax = 100.0;
 const float b = 2.0;
-const float wall_height = 2.0;
+const float wall_height = 4.0;
 
 const mat3 IDENTITY_MAT = mat3(
     1.0, 0.0, 0.0,
     0.0, 1.0, 0.0,
     0.0, 0.0, 1.0
 );
+
+
 
 mat3 rotMat(vec3 axis, float angle) {
     axis = normalize(axis);
@@ -153,7 +155,7 @@ vec2 sdfWithID(vec3 p) {
     
     // Return the closest object with its ID
     if (decorDist < walls.x) {
-        return vec2(decorDist, 10.0); // 10 = decoration ID
+        return vec2(decorDist, 1000.0); // 1000 = decoration ID
     } else {
         return walls; // vec2(distance, wallID)
     }
@@ -205,8 +207,8 @@ void main() {
             vec2 hitInfo = sdfWithID(pos);
             finalHitID = hitInfo.y;
             
-            // If we hit a wall (ID 0-7), transform and continue
-            if (finalHitID < 9.0) {
+            // If we hit a wall (ID 0-1000), transform and continue
+            if (finalHitID < 1000.0) {
                 // Use a local integer variable for the wall ID
                 int wallIdx = int(finalHitID);
                 

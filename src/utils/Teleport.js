@@ -10,7 +10,7 @@ class Teleport {
     this.lastPosition = new THREE.Vector3();
     this.isInitialized = false;
     this.wallHeight = 2.0; // Default wall height
-    this.enabled = true; // Flag to enable/disable teleportation
+    this.enabled = false; // Flag to enable/disable teleportation
   }
 
   // Load geometry data from the geometry file
@@ -187,6 +187,7 @@ class Teleport {
             break;
           case 'affine':
             // For affine, do nothing - let the player continue moving
+            // This is what the user wants - affine should do nothing
             handled = false;
             break;
           default:
@@ -291,7 +292,8 @@ class Teleport {
     return true;
   }
 
-  // Handler for affine edges
+  // Handler for affine edges - we're not using this at the moment
+  // Keeping the code here for reference, but it won't be called
   handleAffine(edgeIndex, position, direction, camera) {
     const edge = this.edges[edgeIndex];
     if (!edge || !edge.transform) return false;
