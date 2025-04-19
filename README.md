@@ -1,21 +1,21 @@
 # RayMarchingFlatSurfaces
 
-A visual exploration of ray marching techniques on various geometric surfaces, including translation surfaces, mirror rooms, and cube surfaces.
+An interactive visual exploration of ray marching techniques applied to various geometric surfaces, including translation surfaces, mirror rooms, and cube surfaces.
 
 ![Ray Marching Example](screenshot.png)
 
 ## Overview
 
-This project implements ray marching algorithms using WebGL shaders to visualize different mathematical surfaces and geometric spaces in real-time. By leveraging the power of fragment shaders, the application can render complex mathematical structures with high performance.
+This project implements ray marching algorithms using WebGL shaders to render different mathematical surfaces and geometric spaces in real-time. By leveraging the power of fragment shaders, the application visualizes complex mathematical structures with high performance while maintaining interactive frame rates.
 
 ### Key Features
 
-- **Multiple Geometry Types**: Explore various mathematical surfaces including translation surfaces, mirror rooms, L-shapes, and more
-- **Interactive Camera**: Navigate through the generated spaces using intuitive camera controls
-- **Real-time Visualization**: Experience smooth, real-time rendering of complex geometries
-- **Teleportation System**: the camera follows the geometry of the underlying surface
-- **Floor Plan View**: View your current position with an overhead map
-- **Responsive Design**: Adaptable to different screen sizes with resolution controls
+- **Multiple Geometry Types**: Explore diverse mathematical surfaces including translation surfaces, mirror rooms, L-shapes, and more
+- **Interactive Camera**: Navigate through the generated spaces with intuitive mouse and keyboard controls
+- **Real-time Visualization**: Experience smooth, high-performance rendering of complex geometries
+- **Teleportation System**: Camera seamlessly follows the underlying surface geometry
+- **Floor Plan View**: Track your position with an interactive overhead map
+- **Responsive Design**: Adjustable resolution settings for optimal performance across devices
 
 ![Floor Plan Example](floorplan.png)
 
@@ -25,6 +25,7 @@ This project implements ray marching algorithms using WebGL shaders to visualize
 
 - Node.js (for building the project)
 - A modern web browser with WebGL support
+- **Note**: This project has only been tested on Firefox and Chrome browsers
 
 ### Installation
 
@@ -70,15 +71,15 @@ npm run preview
 
 <!-- ![Ray Marching Visualization](placeholder-for-ray-marching-diagram.png) -->
 
-The application uses ray marching techniques implemented through fragment shaders to render complex geometries:
+The application implements ray marching techniques through optimized fragment shaders to render complex geometries:
 
-1. **Ray Casting**: From each pixel, the algorithm casts a ray into the scene
-2. **Distance Calculation**: The shader computes the minimum distance to any surface in the scene
-3. **Marching**: The algorithm "marches" along the ray by the calculated distance
-4. **Iteration**: Steps 2 and 3 are repeated until a surface is hit or a maximum number of steps is reached
-5. **Shading**: Once a surface is hit, the shader computes lighting and color information
+1. **Ray Casting**: For each pixel, the algorithm casts a ray originating from the camera into the scene
+2. **Distance Calculation**: The shader efficiently computes the minimum distance to any surface in the scene
+3. **Marching**: The algorithm advances along the ray by the calculated safe distance
+4. **Iteration**: Steps 2 and 3 repeat until either a surface is hit or the maximum step count is reached
+5. **Shading**: Upon hitting a surface, the shader calculates lighting, reflections, and material properties
 
-For flat surfaces and translation/mirror spaces, this method allows for accurate and efficient rendering of the mathematical structures.
+For flat surfaces and translation/mirror spaces, this technique provides both accurate visualization and excellent performance compared to traditional rasterization methods.
 
 ## Controls
 
