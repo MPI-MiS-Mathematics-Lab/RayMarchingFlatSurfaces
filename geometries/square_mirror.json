@@ -27,9 +27,16 @@
         "normal": [1.0, 0.0, 0.0]
       }
     ],
+    "normals":[
+      [0.0, 1.0],
+      [-1.0, 0.0],
+      [0.0, -1.0],
+      [1.0, 0.0]
+    ],
     "initialPosition": [0.0, 1.0, 0.0],
     "wallHeight": 2.0,
     "teleportThreshold": 0.1,
+    "gluing": [0,1,2,3],
     "teleportHeightRange": [0.0, 2.0],
     "decorations": [
       {

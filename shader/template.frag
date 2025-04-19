@@ -251,8 +251,6 @@ void main() {
         }
     }
     
-    // Apply collision fog to visualize number of teleports
-
     // Final output
-    gl_FragColor = vec4(color, 1.0) - collision_count*vec4(0.03);
+    gl_FragColor = vec4(color, 1.0) - collision_count*vec4(0.02);
 }

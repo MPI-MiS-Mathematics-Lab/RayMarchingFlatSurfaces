@@ -64,6 +64,11 @@ class ShaderGenerator {
     const numWalls = numVertices - 1;
     shaderCode = shaderCode.replace('{{NUM_WALLS}}', numWalls);
     
+    // Replace wall_height placeholder with the value from the geometry data
+    // Use default of 2.0 if not specified
+    const wallHeight = geometryData.wallHeight !== undefined ? geometryData.wallHeight : 2.0;
+    shaderCode = shaderCode.replace('const float wall_height = 2.0;', `const float wall_height = ${wallHeight.toFixed(1)};`);
+    
     // Generate vertices code
     let verticesCode = geometryData.vertices.map(([x, y]) => {
       return `vec2(${x.toFixed(8)}, ${y.toFixed(8)})`;
@@ -151,7 +156,8 @@ class ShaderGenerator {
         // Only reflect the ray direction (not the position)
         ray = ray - 2.0 * dot(ray, normal) * normal;
         // Push slightly away from the surface along the reflected ray direction
-        pos += eps * 3.0 * ray;
+        // pos += eps * 3.0 * ray;
+        pos -= 3.0 * eps * wallNormals[destWallIdx];        
     }`;
         break;
         
@@ -225,85 +231,49 @@ class ShaderGenerator {
     return code;
   }
 
-  // generateAffineArrays(edges, numWalls) {
-  //   // Generate the transformation matrices
-  //   let code = `// Affine transformation matrices for each wall\n`;
-  //   code += `const mat4 affineMatrices[NUM_WALLS] = mat4[NUM_WALLS](\n`;
+  generateAffineArrays(edges, numWalls) {
+    // Generate the transformation matrices and translations separately
+    let code = `// 2x2 transformation matrices for each wall\n`;
+    code += `const mat2 transformMatrices[NUM_WALLS] = mat2[NUM_WALLS](\n`;
     
-  //   code += edges.map(edge => {
-  //     // Default to identity matrix if no transformation is specified
-  //     let a = 1, b = 0, c = 0, d = 1;  // Default identity 2×2 matrix
-  //     let tx = 0, tz = 0;              // Default zero translation
+    code += edges.map(edge => {
+      // Default to identity matrix if no transformation is specified
+      let a = 1, b = 0, c = 0, d = 1;  // Default identity 2×2 matrix
       
-  //     // Extract transformation from edge data
-  //     if (edge.transform && edge.transform.matrix) {
-  //       [a, b, c, d] = edge.transform.matrix;
-  //     }
+      // Extract transformation from edge data
+      if (edge.transform && edge.transform.matrix) {
+        [a, b, c, d] = edge.transform.matrix;
+      }
       
-  //     if (edge.transform && edge.transform.translation) {
-  //       // Get the 2D translation and use it for x,z components (leaving y as 0)
-  //       [tx, tz] = edge.transform.translation;
-  //     }
-      
-  //     // Format the 4×4 matrix for GLSL - extend the 2×2 matrix to 3D space
-  //     // The matrix maps x->x, z->z, and keeps y unchanged
-  //     return `    mat4(
-  //       ${a.toFixed(8)}, 0.0, ${b.toFixed(8)}, ${tx.toFixed(8)},
-  //       0.0, 1.0, 0.0, 0.0,
-  //       ${c.toFixed(8)}, 0.0, ${d.toFixed(8)}, ${tz.toFixed(8)},
-  //       0.0, 0.0, 0.0, 1.0
-  //     )`;
-  //   }).join(',\n');
-    
-  //   code += '\n);\n\n';
-    
-  //   return code;
-  // }
-  // Modified generateAffineArrays method in ShaderGenerator.js
-
-generateAffineArrays(edges, numWalls) {
-  // Generate the transformation matrices and translations separately
-  let code = `// 2x2 transformation matrices for each wall\n`;
-  code += `const mat2 transformMatrices[NUM_WALLS] = mat2[NUM_WALLS](\n`;
-  
-  code += edges.map(edge => {
-    // Default to identity matrix if no transformation is specified
-    let a = 1, b = 0, c = 0, d = 1;  // Default identity 2×2 matrix
-    
-    // Extract transformation from edge data
-    if (edge.transform && edge.transform.matrix) {
-      [a, b, c, d] = edge.transform.matrix;
-    }
-    
-    // Format the 2×2 matrix for GLSL
-    return `    mat2(
+      // Format the 2×2 matrix for GLSL
+      return `    mat2(
       ${a.toFixed(8)}, ${b.toFixed(8)},
       ${c.toFixed(8)}, ${d.toFixed(8)}
     )`;
-  }).join(',\n');
-  
-  code += '\n);\n\n';
-  
-  // Add translation vectors array
-  code += `// Translation vectors for each wall\n`;
-  code += `const vec2 translateVectors[NUM_WALLS] = vec2[NUM_WALLS](\n`;
-  
-  code += edges.map(edge => {
-    // Default to zero translation
-    let tx = 0, tz = 0;
+    }).join(',\n');
     
-    if (edge.transform && edge.transform.translation) {
-      // Get the 2D translation vector
-      [tx, tz] = edge.transform.translation;
-    }
+    code += '\n);\n\n';
     
-    return `    vec2(${tx.toFixed(8)}, ${tz.toFixed(8)})`;
-  }).join(',\n');
-  
-  code += '\n);\n\n';
-  
-  return code;
-}
+    // Add translation vectors array
+    code += `// Translation vectors for each wall\n`;
+    code += `const vec2 translateVectors[NUM_WALLS] = vec2[NUM_WALLS](\n`;
+    
+    code += edges.map(edge => {
+      // Default to zero translation
+      let tx = 0, tz = 0;
+      
+      if (edge.transform && edge.transform.translation) {
+        // Get the 2D translation vector
+        [tx, tz] = edge.transform.translation;
+      }
+      
+      return `    vec2(${tx.toFixed(8)}, ${tz.toFixed(8)})`;
+    }).join(',\n');
+    
+    code += '\n);\n\n';
+    
+    return code;
+  }
 
   generateDecorationsCode(decorations) {
     // Start the function
@@ -420,7 +390,8 @@ generateAffineArrays(edges, numWalls) {
       description: geometryData.description || '',
       name: geometryData.name || geometryId,
       verticalComponent: geometryData.vertical_component || 'line',
-      verticalWrapAmount: geometryData.vertical_wrap_amount || 4.0
+      verticalWrapAmount: geometryData.vertical_wrap_amount || 4.0,
+      wallHeight: geometryData.wallHeight || 2.0  // Add wallHeight to the returned object
     };
   }
 }

@@ -2,9 +2,14 @@
     "geometries": [
         { "id": "pentagon_mirror", "name": "Pentagon Mirror", "description": "A mirror room whose floor plan is the double pentagon." },
         { "id": "cube", "name": "Cube", "description": "A room whose floor plan is the surface of a cube." },
+        { "id": "pillowCase", "name": "pillowCase", "description": "The pillow case." },
         { "id": "l_shape", "name": "L-Shaped Room", "description": "A room whose floor plan is the L-shaped translation surface." },
         { "id": "pentagon", "name": "Double Pentagon Translation", "description": "A room whose floor plan is the double pentagon translation surface." },
+        { "id": "square_mirror", "name": "Square Mirror", "description": "A room whose floor plan is the double pentagon translation surface." },
         { "id": "pentagon_mirror", "name": "Double Pentagon Mirror", "description": "A room whose floor plan is the double pentagon translation surface." },
+        { "id": "irrationalTriangle", "name": "Irrational Triangle", "description": "A mirror room whose floor plan is an irrational triangle." },
+        { "id": "rationalTriangle", "name": "Rational 30-60-90 Triangle", "description": "A mirror room whose floor plan is an irrational triangle." },
+        { "id": "equilateralTriangle", "name": "equilateral Triangle", "description": "A mirror room whose floor plan is an irrational triangle." },
         { "id": "pentagonPillars", "name": "Double Pentagon Translation pillars", "description": "A room whose floor plan is the double pentagon translation surface including pillars." }
     ]
   }
