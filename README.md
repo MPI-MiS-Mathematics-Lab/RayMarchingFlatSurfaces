@@ -68,7 +68,7 @@ npm run preview
 
 ## How It Works
 
-![Ray Marching Visualization](placeholder-for-ray-marching-diagram.png)
+<!-- ![Ray Marching Visualization](placeholder-for-ray-marching-diagram.png) -->
 
 The application uses ray marching techniques implemented through fragment shaders to render complex geometries:
 
