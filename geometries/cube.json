@@ -1,0 +1,222 @@
+{
+    "vertices": 
+    [
+        [1.0, 1.0],
+        [1.0,3.0],
+        [-1.0, 3.0],
+        [-1.0,1.0],
+        [-3.0,1.0],
+        [-3.0,-1.0],
+        [-1.0,-1.0],
+        [-1.0,-3.0],
+        [1.0,-3.0],
+        [1.0,-1.0],
+        [3.0,-1.0],
+        [5.0,-1.0],
+        [5.0,1.0],
+        [3.0,1.0],
+        [1.0,1.0]
+    ],
+    "gluing": [13, 12, 3, 2, 11, 6, 5, 10, 9, 8, 7, 4, 1, 0],
+    "normals": 
+    [
+        [1.0,0.0],
+        [0.0,1.0],
+        [-1.0,0.0], 
+        [0.0,1.0],
+        [-1.0,0.0],
+        [0.0,-1.0],
+        [-1.0,0.0],        
+        [0.0,-1.0],
+        [1.0,0.0],        
+        [0.0,-1.0],
+        [0.0,-1.0],        
+        [1.0,0.0],
+        [0.0,1.0],
+        [0.0,1.0]
+    ],
+    "edges": [
+        {
+            "ID":0,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [0.0, -1.0, 1.0, 0.0],
+                "translation": [0.0, 2.0]
+            }
+        },
+        {
+            "ID":1,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [-1.0, 0.0, 0.0, -1.0],
+                "translation": [4.0, 4.0]
+            }
+        },
+        {
+            "ID":2,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [0.0, 1.0, -1.0, 0.0],
+                "translation": [0.0, 2.0]
+            }
+        },
+        {
+            "ID":3,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [0.0, -1.0, 1.0, 0.0],
+                "translation": [-2.0, 0.0]
+            }
+        },
+        {
+            "ID":4,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [1.0, 0.0, 0.0, 1.0],
+                "translation": [8.0, 0.0]
+            }
+        },
+        {
+            "ID":5,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [0.0, 1.0, -1.0, 0.0],
+                "translation": [-2.0, 0.0]
+            }
+        },
+        {
+            "ID":6,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [0.0, -1.0, 1.0, 0.0],
+                "translation": [0.0, -2.0]
+            }
+        },
+        {
+            "ID":7,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [-1.0, 0.0, 0.0, -1.0],
+                "translation": [4.0, -4.0]
+            }
+        },
+        {
+            "ID":8,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [0.0, 1.0, -1.0, 0.0],
+                "translation": [0.0, -2.0]
+            }
+        },
+        {
+            "ID":9,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [0.0, -1.0, 1.0, 0.0],
+                "translation": [2.0, 0.0]
+            }
+        },
+        {
+            "ID":10,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [-1.0, 0.0, 0.0, -1.0],
+                "translation": [4.0, -4.0]
+            }
+        },
+        {
+            "ID":11,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [1.0, 0.0, 0.0, 1.0],
+                "translation": [-4.0, 0.0]
+            }
+        },
+        {
+            "ID":12,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [-1.0, 0.0, 0.0, -1.0],
+                "translation": [4.0, 4.0]
+            }
+        },
+        {
+            "ID":13,
+            "type": "affine",
+            "transform": 
+            {
+                "matrix": [0.0, 1.0, -1.0, 0.0],
+                "translation": [2.0, 0.0]
+            }
+        }
+      ],
+      "initialPosition": [
+        0.0,
+        0.0,
+        0.0
+      ],
+    "decorations": [
+      {
+        "type": "hollow_cube",
+        "position": [0.0, 0.0],
+        "height": 1.0,
+        "radius": 0.2
+      },
+      {
+        "type": "sphere",
+        "position": [2.0, 2.0],
+        "height": 0.5,
+        "radius": 0.15,
+        "animation": {
+          "enabled": true,
+          "type": "circular",
+          "speed": 1.0,
+          "radius": 1.2,
+          "center": [0.0, 0.0]
+        }
+      },
+      {
+        "type": "sphere",
+        "position": [-2.0, 0.0],
+        "height": -1.0,
+        "radius": 0.15
+      },
+      {
+        "type": "sphere",
+        "position": [0.0, -2.0],
+        "height": 0.0,
+        "radius": 0.15
+      },
+      {
+        "type": "sphere",
+        "position": [2.0, 0.0],
+        "height": 1.0,
+        "radius": 0.15
+      },
+      {
+        "type": "sphere",
+        "position": [4.0, 0.0],
+        "height": 2.0,
+        "radius": 0.15
+      },
+      {
+        "type": "sphere",
+        "position": [0.0, 2.0],
+        "height": 1.5,
+        "radius": 0.15
+      }
+    ]
+}

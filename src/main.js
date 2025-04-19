@@ -2,11 +2,60 @@
 import Engine from './core/Engine.js';
 import Camera from './core/Camera.js';
 import Input from './core/Input.js';
-import SimpleFloorPlan from './utils/FloorPlan.js'; // Import the SimpleFloorPlan
-import Teleport from './utils/Teleport.js'; // Import the Teleport class
+import SimpleFloorPlan from './utils/FloorPlan.js';
+import Teleport from './utils/Teleport.js';
 import Stats from 'three/addons/libs/stats.module.js';
 import * as THREE from 'three';
 
+// Function to load available geometries from manifest
+async function loadGeometryManifest() {
+  try {
+    const response = await fetch('geometries/manifest.json');
+    if (!response.ok) {
+      throw new Error(`Failed to load geometry manifest: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to load geometry manifest:", error);
+    // Return a minimal fallback if the manifest can't be loaded
+    return {
+      geometries: [
+        { id: "square", name: "Square Room", description: "Default geometry" }
+      ]
+    };
+  }
+}
+
+// Function to populate the geometry dropdown
+function populateGeometryDropdown(manifest, geometrySelect, currentGeometryId) {
+  if (!geometrySelect) return;
+  
+  // Clear existing options
+  geometrySelect.innerHTML = '';
+  
+  // Add options from manifest
+  manifest.geometries.forEach(geometry => {
+    const option = document.createElement('option');
+    option.value = geometry.id;
+    option.textContent = geometry.name;
+    option.dataset.description = geometry.description || '';
+    geometrySelect.appendChild(option);
+  });
+  
+  // Set initial selection
+  geometrySelect.value = currentGeometryId;
+  
+  // Update description
+  updateGeometryDescription(geometrySelect);
+}
+
+// Function to update geometry description
+function updateGeometryDescription(geometrySelect) {
+  const descriptionElement = document.getElementById('geometry-description');
+  if (descriptionElement && geometrySelect.selectedOptions[0]) {
+    descriptionElement.textContent = geometrySelect.selectedOptions[0].dataset.description || '';
+  }
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Get the container element
@@ -33,6 +82,48 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Load the initial geometry for the floor plan
   floorPlan.loadGeometry(engine.getCurrentGeometryId());
+  
+  // Load geometry manifest and populate dropdown
+  const geometrySelect = document.getElementById('geometry-select');
+  if (geometrySelect) {
+    try {
+      const manifest = await loadGeometryManifest();
+      populateGeometryDropdown(manifest, geometrySelect, engine.getCurrentGeometryId());
+      
+      // Add change event listener after populating
+      geometrySelect.addEventListener('change', async (event) => {
+        const geometryId = event.target.value;
+        
+        try {
+          // Load new geometry
+          const { initialPosition } = await engine.loadGeometry(geometryId);
+          
+          // Update floor plan with the new geometry
+          floorPlan.loadGeometry(geometryId);
+          
+          // Set the current geometry for the teleport system
+          teleport.setGeometry(await engine.shaderGenerator.loadGeometryFile(geometryId));
+          
+          // Reset camera position to initial position for the new geometry
+          if (initialPosition) {
+            const pos = new THREE.Vector3(
+              initialPosition[0],
+              initialPosition[1],
+              initialPosition[2]
+            );
+            camera.reset(pos);
+          }
+          
+          // Update the description
+          updateGeometryDescription(geometrySelect);
+        } catch (error) {
+          console.error(`Failed to load geometry: ${error.message}`);
+        }
+      });
+    } catch (error) {
+      console.error("Failed to initialize geometry selector:", error);
+    }
+  }
   
   // Create stats panel
   const stats = new Stats();
@@ -147,40 +238,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       camera.handleResize(width, height);
       floorPlan.resize(); // Resize floor plan
     });
-  }
-  
-  // Setup geometry selector dropdown
-  const geometrySelect = document.getElementById('geometry-select');
-  if (geometrySelect) {
-    geometrySelect.addEventListener('change', async (event) => {
-      const geometryId = event.target.value;
-      
-      try {
-        // Load new geometry
-        const { initialPosition } = await engine.loadGeometry(geometryId);
-        
-        // Update floor plan with the new geometry
-        floorPlan.loadGeometry(geometryId);
-        
-        // Set the current geometry for the teleport system
-        teleport.setGeometry(await engine.shaderGenerator.loadGeometryFile(geometryId));
-        
-        // Reset camera position to initial position for the new geometry
-        if (initialPosition) {
-          const pos = new THREE.Vector3(
-            initialPosition[0],
-            initialPosition[1],
-            initialPosition[2]
-          );
-          camera.reset(pos);
-        }
-      } catch (error) {
-        console.error(`Failed to load geometry: ${error.message}`);
-      }
-    });
-    
-    // Set initial value to match the engine's default
-    geometrySelect.value = engine.getCurrentGeometryId();
   }
   
   // Initial geometry loading for teleport

@@ -9,7 +9,7 @@ uniform vec3 rayMarchCamUp;
 const float eps = 0.00001;
 const float tMax = 100.0;
 const float b = 2.0;
-const float wall_height = 4.0;
+const float wall_height = 2.0;
 
 const mat3 IDENTITY_MAT = mat3(
     1.0, 0.0, 0.0,

@@ -2,7 +2,7 @@
   "id": "pentagon",
   "name": "Double Pentagon Translation",
   "description": "Two pentagons with translation teleportation on edges",
-  "vertical_component": "circle",
+  "vertical_component": "line",
   "vertical_wrap_amount": 4.0,
   "vertices": [
     [3.61803399, 0.00000000],

@@ -10,10 +10,6 @@ class SimpleFloorPlan {
     this.viewAngle = 0;
     this.visible = true;
     
-    // Transformation matrix (identity by default)
-    this.transformMatrix = new THREE.Matrix3().identity();
-    this.inverseTransformMatrix = new THREE.Matrix3().identity();
-    
     this.createElements();
   }
   
@@ -151,63 +147,27 @@ class SimpleFloorPlan {
     this.scale = scale;
     this.svgWidth = svgRect.width;
     this.svgHeight = svgRect.height;
-    
-    // Calculate transformation matrix from 3D world to 2D SVG
-    this.transformMatrix = new THREE.Matrix3();
-    // Scale
-    this.transformMatrix.set(
-      scale, 0, 0,
-      0, scale, 0,
-      -centerX * scale + svgRect.width / 2, -centerY * scale + svgRect.height / 2, 1
-    );
-    
-    // Calculate inverse for vector transformations
-    this.inverseTransformMatrix = new THREE.Matrix3().copy(this.transformMatrix).invert();
-    
-    // Debug
-    console.log('Transform matrix set:', this.transformMatrix);
   }
   
   updateCameraPosition(position, frontVector) {
     if (!this.currentGeometryId) return;
     
-    // Create temporary vectors for calculation
-    const worldPos = new THREE.Vector2(position.x, position.z);
-    const cameraPoint = new THREE.Vector3(worldPos.x, worldPos.y, 1);
-    
-    // Apply transformation matrix to get SVG coordinates
-    cameraPoint.applyMatrix3(this.transformMatrix);
-    
     // Update camera position marker
-    this.cameraMarker.setAttribute('cx', cameraPoint.x);
-    this.cameraMarker.setAttribute('cy', cameraPoint.y);
+    const x = (position.x - this.centerX) * this.scale + this.svgWidth / 2;
+    const y = (position.z - this.centerY) * this.scale + this.svgHeight / 2;
     
-    // Store current camera position for future reference
-    this.cameraPosition.set(cameraPoint.x, cameraPoint.y);
+    this.cameraMarker.setAttribute('cx', x);
+    this.cameraMarker.setAttribute('cy', y);
     
     // Update direction indicator if front vector is provided
     if (frontVector) {
-      // For direction, we need to transform the direction vector using just the rotation/scale part
-      // Create a normalized 2D vector from the 3D front vector
-      const frontDir = new THREE.Vector2(frontVector.x, frontVector.z).normalize();
+      this.viewAngle = Math.atan2(frontVector.z, frontVector.x);
       
-      // Calculate view angle in 2D space
-      this.viewAngle = Math.atan2(frontDir.y, frontDir.x);
+      const radius = 8;
+      const x2 = x + Math.cos(this.viewAngle) * radius;
+      const y2 = y + Math.sin(this.viewAngle) * radius;
       
-      // Calculate the end point of the direction indicator
-      const radius = 8; // Length of the direction indicator
-      const endX = cameraPoint.x + Math.cos(this.viewAngle) * radius;
-      const endY = cameraPoint.y + Math.sin(this.viewAngle) * radius;
-      
-      // Set the path for the direction indicator
-      this.directionIndicator.setAttribute('d', `M${cameraPoint.x},${cameraPoint.y} L${endX},${endY}`);
-      
-      // Debug: Log position and direction for troubleshooting
-      console.log('Camera updated:', {
-        worldPos: [position.x, position.z],
-        svgPos: [cameraPoint.x, cameraPoint.y],
-        direction: [Math.cos(this.viewAngle), Math.sin(this.viewAngle)]
-      });
+      this.directionIndicator.setAttribute('d', `M${x},${y} L${x2},${y2}`);
     }
   }
   

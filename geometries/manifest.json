@@ -1,0 +1,8 @@
+{
+    "geometries": [
+        { "id": "pentagon_mirror", "name": "Pentagon Mirror", "description": "A mirror room whose floor plan is the double pentagon." },
+        { "id": "cube", "name": "Cube", "description": "A room whose floor plan is the surface of a cube." },
+        { "id": "l_shape", "name": "L-Shaped Room", "description": "A room whose floor plan is the L-shaped translation surface." },
+        { "id": "pentagon", "name": "Pentagon Translation", "description": "A room whose floor plan is the double pentagon translation surface." }
+    ]
+  }

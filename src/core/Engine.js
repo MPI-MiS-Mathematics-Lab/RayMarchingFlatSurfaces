@@ -16,7 +16,7 @@ class Engine {
     };
     
     this.shaderGenerator = new ShaderGenerator();
-    this.currentGeometryId = 'square'; // Default geometry
+    this.currentGeometryId = 'L_shape'; // Default geometry
     this.isShaderLoaded = false;
     this.currentPosition = new THREE.Vector3(0, 1, 0);
     
