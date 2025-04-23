@@ -1,7 +1,7 @@
 export default {
-    base: '/RayMarchingFlatSurfaces/',  // Replace with your actual repository name
+    base: process.env.NODE_ENV === 'production'?'/RayMarchingFlatSurfaces/' : '',
     build: {
-      outDir: 'dist',
+       outDir: 'dist',
       assetsDir: 'assets',
       sourcemap: false,  // Set to true if you need source maps
     },
