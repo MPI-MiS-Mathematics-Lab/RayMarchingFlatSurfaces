@@ -1,0 +1,93 @@
+{
+    "id": "pentagon",
+    "name": "Double Pentagon Translation",
+    "description": "Two pentagons with translation teleportation on edges",
+    "vertical_component": "circle",
+    "vertical_wrap_amount": 4.0,
+    "vertices": [
+      [3.61803399, 0.00000000],
+      [2.23606798, 1.90211303],
+      [0.00000000, 1.17557050],
+      [-2.23606798, 1.90211303],
+      [-3.61803399, 0.00000000],
+      [-2.23606798, -1.90211303],
+      [0.00000000, -1.17557050],
+      [2.23606798, -1.90211303],
+      [3.61803399, 0.00000000]
+    ],
+    "edges": [
+      {
+        "type": "translation",
+        "vector": [-5.85410197, -1.90211303]
+      },
+      {
+        "type": "translation",
+        "vector": [-2.23606798, -3.07768353]
+      },
+      {
+        "type": "translation",
+        "vector": [2.23606798, -3.07768353]
+      },
+      {
+        "type": "translation",
+        "vector": [5.85410197, -1.90211303]
+      },
+      {
+        "type": "translation",
+        "vector": [5.85410197, 1.90211303]
+      },
+      {
+        "type": "translation",
+        "vector": [2.23606798, 3.07768353]
+      },
+      {
+        "type": "translation",
+        "vector": [-2.23606798, 3.07768353]
+      },
+      {
+        "type": "translation",
+        "vector": [-5.85410197, 1.90211303]
+      }
+    ],
+    "gluing": [4, 5, 6, 7, 0, 1, 2, 3],
+    "normals": [
+      [0.81, 0.59],
+      [-0.31, 0.95],
+      [0.31, 0.95],
+      [-0.81, 0.59],
+      [-0.81, -0.59],
+      [0.31, -0.95],
+      [-0.31, -0.95],
+      [0.81, -0.59]
+    ],
+    "initialPosition": [0.0, 1.0, 0.0],
+    "wallHeight": 2.0,
+    "decorations": [
+      {
+        "type": "hollow_cube",
+        "position": [0.0, 0.0],
+        "height": 1.0,
+        "radius": 0.15
+      },
+      {
+        "type": "sphere",
+        "position": [1.618, 0.0],
+        "height": 0.0,
+        "radius": 0.07,
+        "animation": {
+          "enabled": true,
+          "type": "circular",
+          "speed": 1.5,
+          "radius": 1.0,
+          "center": [0.0, 0.0]
+        }
+      },
+      {
+        "type": "sphere",
+        "position": [0.0, 0.5],
+        "height": 1.0,
+        "radius": 0.07,
+        "color": [0.3, 0.8, 0.6]
+      }
+    ]
+  }

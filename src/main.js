@@ -7,10 +7,29 @@ import Teleport from './utils/Teleport.js';
 import Stats from 'three/addons/libs/stats.module.js';
 import * as THREE from 'three';
 
-// Function to load available geometries from manifest
+// // Function to load available geometries from manifest
+// async function loadGeometryManifest() {
+//   try {
+//     const response = await fetch('/geometries/manifest.json');
+//     if (!response.ok) {
+//       throw new Error(`Failed to load geometry manifest: ${response.statusText}`);
+//     }
+//     return await response.json();
+//   } catch (error) {
+//     console.error("Failed to load geometry manifest:", error);
+//     // Return a minimal fallback if the manifest can't be loaded
+//     return {
+//       geometries: [
+//         { id: "square", name: "Square Room", description: "Default geometry" }
+//       ]
+//     };
+//   }
+// }
+
 async function loadGeometryManifest() {
   try {
-    const response = await fetch('geometries/manifest.json');
+    const basePath = import.meta.env.BASE_URL || '/';
+    const response = await fetch(`${basePath}geometries/manifest.json`);
     if (!response.ok) {
       throw new Error(`Failed to load geometry manifest: ${response.statusText}`);
     }

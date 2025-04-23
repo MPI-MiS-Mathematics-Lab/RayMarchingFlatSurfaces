@@ -77,12 +77,36 @@ class SimpleFloorPlan {
     this.container.appendChild(this.toggleButton);
   }
   
+  // async loadGeometry(geometryId) {
+  //   try {
+  //     console.log(`Loading geometry: ${geometryId}`);
+      
+  //     // Corrected path to match file structure
+  //     const path = `/geometries/${geometryId}.json`;
+      
+  //     // Direct load from JSON file
+  //     const response = await fetch(path);
+  //     if (!response.ok) {
+  //       throw new Error(`Failed to load geometry data: ${response.statusText}`);
+  //     }
+      
+  //     const geometryData = await response.json();
+  //     console.log(`Loaded geometry with ${geometryData.vertices.length} vertices`);
+  //     this.updatePolygon(geometryData);
+  //     return geometryData;
+  //   } catch (error) {
+  //     console.error('Error loading geometry JSON:', error);
+  //     return null;
+  //   }
+  // }
+
   async loadGeometry(geometryId) {
     try {
       console.log(`Loading geometry: ${geometryId}`);
       
-      // Corrected path to match file structure
-      const path = `geometries/${geometryId}.json`;
+      // Use the base path from import.meta.env
+      const basePath = import.meta.env.BASE_URL || '/';
+      const path = `${basePath}geometries/${geometryId}.json`;
       
       // Direct load from JSON file
       const response = await fetch(path);

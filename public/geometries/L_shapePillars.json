@@ -1,0 +1,124 @@
+{
+    "id": "l_shape",
+    "name": "L-Shaped Room",
+    "description": "An L-shaped room with teleportation between edges",
+    "initialPosition": [0.0, 0.0, 0.0],
+    "wallHeight": 2.0,
+    "fog_effect_strength": 0.05,
+    "vertical_component": "line",
+    "vertical_wrap_amount": 4.0,
+    "vertices": [
+      [2.0, 0.0],
+      [6.0, 0.0],
+      [6.0, -4.0],
+      [2.0, -4.0],
+      [-2.0, -4.0],
+      [-2.0, 0.0],
+      [-2.0, 4.0],
+      [2.0, 4.0],
+      [2.0, 0.0]
+    ],
+    "gluing": [2, 4, 0, 6, 1, 7, 3, 5],
+    "normals": [
+      [0, 1],
+      [1, 0],
+      [0, -1],
+      [0, -1],
+      [-1, 0],
+      [-1, 0],
+      [0, 1],
+      [1, 0]
+    ],
+    "edges": [
+      {
+        "type": "translation",
+        "vector": [0.0, -4.0]
+      },
+      {
+        "type": "translation",
+        "vector": [-8.0, 0.0]
+      },
+      {
+        "type": "translation",
+        "vector": [0.0, 4.0]
+      },
+      {
+        "type": "translation",
+        "vector": [0.0, 8.0]
+      },
+      {
+        "type": "translation",
+        "vector": [8.0, 0.0]
+      },
+      {
+        "type": "translation",
+        "vector": [4.0, 0.0]
+      },
+      {
+        "type": "translation",
+        "vector": [0.0, -8.0]
+      },
+      {
+        "type": "translation",
+        "vector": [-4.0, 0.0]
+      }
+    ],
+    "decorations": [
+        {
+          "type": "hollow_cube",
+          "position": [0.0, 0.0],
+          "height": 0.0,      
+          "radius": 0.13
+        },
+        {
+          "type": "sphere",
+          "position": [2.0, -2.0],
+          "height": 1.0,      
+          "radius": 0.1
+        },
+        {
+            "type": "cylinder",
+            "position": [2.0,0.0, 0.0],
+            "radius": 0.02,
+            "height": 4.0
+          },
+          {
+            "type": "cylinder",
+            "position": [6.0,0.0, 0.0],
+            "radius": 0.02,
+            "height": 4.0
+          },
+          {
+            "type": "cylinder",
+            "position": [2.0,0.0, -4.0],
+            "radius": 0.02,
+            "height": 4.0
+          },
+          {
+            "type": "cylinder",
+            "position": [-2.0,0.0, -4.0],
+            "radius": 0.02,
+            "height": 4.0
+          },
+          {
+            "type": "cylinder",
+            "position": [-2.0,0.0, 0.0],
+            "radius": 0.02,
+            "height": 4.0
+          },
+          {
+            "type": "cylinder",
+            "position": [-2.0,0.0, 4.0],
+            "radius": 0.02,
+            "height": 4.0
+          },
+          {
+            "type": "cylinder",
+            "position": [2.0,0.0, 4.0],
+            "radius": 0.02,
+            "height": 4.0
+          }
+    ]
+  }
+
+

@@ -4,6 +4,7 @@
   "description": "An L-shaped room with teleportation between edges",
   "initialPosition": [0.0, 0.0, 0.0],
   "wallHeight": 2.0,
+  "fog_effect_strength": 0.05,
   "vertical_component": "line",
   "vertical_wrap_amount": 4.0,
   "vertices": [

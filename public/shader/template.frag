@@ -10,6 +10,7 @@ const float eps = 0.00001;
 const float tMax = 100.0;
 const float b = 2.0;
 const float wall_height = 2.0;
+const float fog_effect_strength = 0.01;
 
 const mat3 IDENTITY_MAT = mat3(
     1.0, 0.0, 0.0,
@@ -174,6 +175,13 @@ void applyTransformation(inout vec3 pos, inout vec3 ray, int wallIdx) {
     {{TRANSFORMATION_CODE}}
 }
 
+// Apply exponential fog based on distance
+vec3 applyFog(vec3 color, float distance, float fogStrength) {
+    float fogFactor = 1.0 - exp(-fogStrength * distance);
+    vec3 fogColor = vec3(0.5, 0.6, 0.7); // Fog color - blueish gray
+    return mix(color, fogColor, fogFactor);
+}
+
 void main() {
     // Set up camera basis vectors using the uniforms
     vec3 cameraPos = rayMarchCamPos;
@@ -191,6 +199,7 @@ void main() {
     
     // ray marching
     float t = 0.0;
+    float distance = 0.0;
     vec3 pos = cameraPos;
     float collision_count = 0.0;
     float finalHitID = -1.0; // Will store what we finally hit: 0-7 = wall ID, 10 = decoration, -1 = nothing
@@ -200,6 +209,7 @@ void main() {
         float sceneDist = sdf(pos);
         // Standard ray marching step
         pos = pos + sceneDist * ray;
+        distance += sceneDist;
 
         // Check if we hit something
         if (abs(sceneDist) < eps) {
@@ -240,17 +250,17 @@ void main() {
     vec3 color = vec3(1.0); // Default white for sky/background
     
     if (finalHitID >= 0.0) {
-        if (finalHitID >= 10.0) {
+        if (finalHitID >= 1000.0) {
             // Decoration hit
             vec3 normal = getNormal(pos);
             color = normal * 0.5 + 0.5;
         } else {
             // Wall hit - this shouldn't normally be visible as we teleport through walls
             // But useful for debugging
-            color = vec3(0.9, 0.9, 0.9); // Bright orange to indicate a wall was directly hit
+            color = vec3(0.9, 0.9, 0.9); // Bright gray to indicate a wall was directly hit
         }
     }
-    
-    // Final output
-    gl_FragColor = vec4(color, 1.0) - collision_count*vec4(0.02);
+
+    // Final output with collision-based darkening
+    gl_FragColor = vec4(color, 1.0) - collision_count * vec4(fog_effect_strength);
 }

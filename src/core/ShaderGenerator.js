@@ -69,6 +69,11 @@ class ShaderGenerator {
     const wallHeight = geometryData.wallHeight !== undefined ? geometryData.wallHeight : 2.0;
     shaderCode = shaderCode.replace('const float wall_height = 2.0;', `const float wall_height = ${wallHeight.toFixed(1)};`);
     
+    // Replace fog_effect_strength placeholder with the value from the geometry data
+    // Use default of 0.01 if not specified
+    const fogEffectStrength = geometryData.fog_effect_strength !== undefined ? geometryData.fog_effect_strength : 0.01;
+    shaderCode = shaderCode.replace('const float fog_effect_strength = 0.01;', `const float fog_effect_strength = ${fogEffectStrength.toFixed(4)};`);
+    
     // Generate vertices code
     let verticesCode = geometryData.vertices.map(([x, y]) => {
       return `vec2(${x.toFixed(8)}, ${y.toFixed(8)})`;
@@ -391,7 +396,8 @@ class ShaderGenerator {
       name: geometryData.name || geometryId,
       verticalComponent: geometryData.vertical_component || 'line',
       verticalWrapAmount: geometryData.vertical_wrap_amount || 4.0,
-      wallHeight: geometryData.wallHeight || 2.0  // Add wallHeight to the returned object
+      wallHeight: geometryData.wallHeight || 2.0,  // Add wallHeight to the returned object
+      fogEffectStrength: geometryData.fog_effect_strength || 0.01  // Add fogEffectStrength to the returned object
     };
   }
 }
