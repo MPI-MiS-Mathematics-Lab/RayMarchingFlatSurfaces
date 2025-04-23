@@ -1,4 +1,4 @@
-name: Deploy static content to pages
+name: Deploy static content to Pages
 
 on:
   push:
@@ -34,8 +34,10 @@ jobs:
         run: npm run build
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        with:
+          enablement: true  # Try to enable Pages if not already enabled
       - name: Upload pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v2  # Changed to v2 which is more stable
         with:
           path: './dist'
       - name: Deploy to GitHub Pages
