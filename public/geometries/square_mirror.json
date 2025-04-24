@@ -11,20 +11,16 @@
     ],
     "edges": [
       {
-        "type": "mirror",
-        "normal": [0.0, 0.0, 1.0]
+        "type": "mirror"
       },
       {
-        "type": "mirror",
-        "normal": [-1.0, 0.0, 0.0]
+        "type": "mirror"
       },
       {
-        "type": "mirror",
-        "normal": [0.0, 0.0, -1.0]
+        "type": "mirror"
       },
       {
-        "type": "mirror",
-        "normal": [1.0, 0.0, 0.0]
+        "type": "mirror"
       }
     ],
     "normals":[

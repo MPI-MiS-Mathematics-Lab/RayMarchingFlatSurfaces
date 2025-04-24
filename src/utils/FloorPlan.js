@@ -6,8 +6,6 @@ class SimpleFloorPlan {
     this.container = container;
     this.svgNS = "http://www.w3.org/2000/svg";
     this.currentGeometryId = null;
-    this.cameraPosition = new THREE.Vector2();
-    this.viewAngle = 0;
     this.visible = true;
     
     this.createElements();
@@ -23,9 +21,8 @@ class SimpleFloorPlan {
     this.floorPlanContainer.style.height = '150px';
     this.floorPlanContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
     this.floorPlanContainer.style.borderRadius = '5px';
-    this.floorPlanContainer.style.zIndex = '100';
     this.floorPlanContainer.style.overflow = 'hidden';
-    this.floorPlanContainer.style.border = '1px solid #666'; // Added border for visibility
+    this.floorPlanContainer.style.border = '1px solid #666';
     
     // Create SVG
     this.svg = document.createElementNS(this.svgNS, 'svg');
@@ -77,45 +74,19 @@ class SimpleFloorPlan {
     this.container.appendChild(this.toggleButton);
   }
   
-  // async loadGeometry(geometryId) {
-  //   try {
-  //     console.log(`Loading geometry: ${geometryId}`);
-      
-  //     // Corrected path to match file structure
-  //     const path = `/geometries/${geometryId}.json`;
-      
-  //     // Direct load from JSON file
-  //     const response = await fetch(path);
-  //     if (!response.ok) {
-  //       throw new Error(`Failed to load geometry data: ${response.statusText}`);
-  //     }
-      
-  //     const geometryData = await response.json();
-  //     console.log(`Loaded geometry with ${geometryData.vertices.length} vertices`);
-  //     this.updatePolygon(geometryData);
-  //     return geometryData;
-  //   } catch (error) {
-  //     console.error('Error loading geometry JSON:', error);
-  //     return null;
-  //   }
-  // }
-
   async loadGeometry(geometryId) {
     try {
-      console.log(`Loading geometry: ${geometryId}`);
-      
       // Use the base path from import.meta.env
       const basePath = import.meta.env.BASE_URL || '/';
       const path = `${basePath}geometries/${geometryId}.json`;
       
-      // Direct load from JSON file
+      // Load geometry from JSON file
       const response = await fetch(path);
       if (!response.ok) {
         throw new Error(`Failed to load geometry data: ${response.statusText}`);
       }
       
       const geometryData = await response.json();
-      console.log(`Loaded geometry with ${geometryData.vertices.length} vertices`);
       this.updatePolygon(geometryData);
       return geometryData;
     } catch (error) {
@@ -126,7 +97,7 @@ class SimpleFloorPlan {
   
   updatePolygon(geometryData) {
     if (!geometryData || !geometryData.vertices || geometryData.vertices.length === 0) {
-      console.warn('Invalid geometry data for floor plan', geometryData);
+      console.warn('Invalid geometry data for floor plan');
       return;
     }
     
@@ -134,9 +105,8 @@ class SimpleFloorPlan {
     
     // Get vertices
     const vertices = geometryData.vertices;
-    console.log(`Processing ${vertices.length} vertices`);
     
-    // Calculate scale factor and center for auto-centering
+    // Calculate bounds for auto-centering
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const vertex of vertices) {
       minX = Math.min(minX, vertex[0]);
@@ -183,13 +153,12 @@ class SimpleFloorPlan {
     this.cameraMarker.setAttribute('cx', x);
     this.cameraMarker.setAttribute('cy', y);
     
-    // Update direction indicator if front vector is provided
+    // Update direction indicator
     if (frontVector) {
-      this.viewAngle = Math.atan2(frontVector.z, frontVector.x);
-      
+      const viewAngle = Math.atan2(frontVector.z, frontVector.x);
       const radius = 8;
-      const x2 = x + Math.cos(this.viewAngle) * radius;
-      const y2 = y + Math.sin(this.viewAngle) * radius;
+      const x2 = x + Math.cos(viewAngle) * radius;
+      const y2 = y + Math.sin(viewAngle) * radius;
       
       this.directionIndicator.setAttribute('d', `M${x},${y} L${x2},${y2}`);
     }

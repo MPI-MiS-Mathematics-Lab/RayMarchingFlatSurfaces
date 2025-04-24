@@ -9,7 +9,7 @@ class Teleport {
     this.epsilon = 0.0001; // Small value for floating point comparisons
     this.lastPosition = new THREE.Vector3();
     this.isInitialized = false;
-    this.wallHeight = 2.0; // Default wall height
+    this.wallHeight = 2.0; // Default wall height (kept for backward compatibility)
     this.enabled = false; // Flag to enable/disable teleportation
   }
 
@@ -25,7 +25,7 @@ class Teleport {
     // Store edges
     this.edges = this.geometryData.edges || [];
     
-    // Store wall height if provided
+    // Store wall height if provided - kept for compatibility but won't be used
     if (geometryData.wallHeight !== undefined) {
       this.wallHeight = geometryData.wallHeight;
     } else {
@@ -35,7 +35,7 @@ class Teleport {
     // Reset position tracking
     this.isInitialized = false;
     
-    console.log(`Teleport: Wall height set to ${this.wallHeight}`);
+    console.log(`Teleport: Wall height set to ${this.wallHeight} (Note: Height constraints removed)`);
     console.log(`Teleport: Loaded ${this.vertices.length} vertices and ${this.edges.length} edges`);
     
     return this.geometryData;
@@ -158,11 +158,9 @@ class Teleport {
     // Check if we're inside the polygon
     const isInside = this.isPointInside(point2D);
     
-    // Check if the camera is within the wall height range
-    const isWithinWallHeight = position.y >= 0 && position.y <= this.wallHeight;
-    
-    // If we're outside the polygon AND within the wall height, handle based on edge type
-    if (!isInside && isWithinWallHeight) {
+    // If we're outside the polygon, handle based on edge type
+    // HEIGHT CHECK REMOVED - always process teleportation regardless of Y position
+    if (!isInside) {
       // Find which edge we're closest to
       const edgeIndex = this.findClosestEdge(point2D);
       
@@ -187,8 +185,7 @@ class Teleport {
             break;
           case 'affine':
             // For affine, do nothing - let the player continue moving
-            // This is what the user wants - affine should do nothing
-            handled = false;
+            handled = this.handleAffine(edgeIndex, position, direction, camera);
             break;
           default:
             // For other/unsupported types, push back
@@ -209,11 +206,6 @@ class Teleport {
         camera.setPosition(position);
         return true;
       }
-    } else if (!isInside && !isWithinWallHeight) {
-      // If outside polygon but not within wall height, just push back
-      position.copy(this.lastPosition);
-      camera.setPosition(position);
-      return true;
     } else {
       // If we're inside, update last position
       this.lastPosition.copy(position);
@@ -292,8 +284,7 @@ class Teleport {
     return true;
   }
 
-  // Handler for affine edges - we're not using this at the moment
-  // Keeping the code here for reference, but it won't be called
+  // Handler for affine edges - actually use it for affine transformations
   handleAffine(edgeIndex, position, direction, camera) {
     const edge = this.edges[edgeIndex];
     if (!edge || !edge.transform) return false;
@@ -309,6 +300,8 @@ class Teleport {
     const d = matrix[3] || 1;
     const tx = translation[0] || 0;
     const tz = translation[1] || 0; // This is correct for 2D [x,z] format
+    
+    console.log(`Teleport: Applying affine transform with matrix [${a}, ${b}, ${c}, ${d}] and translation [${tx}, ${tz}]`);
     
     // Create a 4x4 transformation matrix
     const transformMatrix = new THREE.Matrix4().set(
@@ -345,6 +338,8 @@ class Teleport {
       const rotationQuaternion = new THREE.Quaternion().setFromAxisAngle(rotationAxis, rotationAngle);
       camera.getCamera().quaternion.premultiply(rotationQuaternion);
     }
+    
+    console.log(`Teleport: Applied affine transformation, new position: [${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}]`);
     
     return true;
   }
