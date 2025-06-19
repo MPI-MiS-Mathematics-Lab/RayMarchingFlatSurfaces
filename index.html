@@ -172,10 +172,36 @@
       font-size: 14px;
       color: #ddd;
     }
+    
+    .browser-compatibility {
+      margin: 15px 0;
+      padding: 10px 15px;
+      background-color: rgba(0, 0, 0, 0.3);
+      border-radius: 5px;
+      font-size: 14px;
+      max-width: 600px;
+      text-align: center;
+      line-height: 1.4;
+    }
+    
+    .browser-compatibility .compatible {
+      color: #5a8;
+    }
+    
+    .browser-compatibility .incompatible {
+      color: #e55;
+    }
   </style>
 </head>
 <body>
   <h1>Ray Marching Renderer</h1>
+  
+  <div class="browser-compatibility">
+    <strong>Browser Compatibility:</strong><br>
+    <span class="compatible">✓ Chrome</span> • 
+    <span class="compatible">✓ Firefox</span> • 
+    <span class="incompatible">✗ Safari</span> (Performance issues - GPU may not be properly utilized)
+  </div>
   
   <div class="geometry-selector">
     <label for="geometry-select">Select Geometry:</label>
@@ -218,5 +244,46 @@
   </div>
   
   <script type="module" src="/src/main.js"></script>
+  
+  <footer style="margin-top: 30px; font-size: 12px; color: #888; text-align: center; padding: 10px; width: 100%; max-width: 800px;">
+    <p>© 2025 Fabian Lander, Diaaeldin Taha · This project is licensed under the <a href="#" id="license-toggle" style="color: #aaa; text-decoration: underline; cursor: pointer;">MIT License</a> · <a href="https://github.com/fabianlander/RayMarchingFlatSurfaces" style="color: #aaa; text-decoration: underline;">GitHub</a></p>
+    <div id="license-text" style="display: none; text-align: left; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 5px; margin-top: 10px; font-size: 11px; max-height: 200px; overflow-y: auto;">
+      <p><strong>MIT License</strong></p>
+      <p>Copyright (c) 2025 Fabian Lander, Diaaeldin Taha</p>
+      <p>This project is a refactored and improved version of the original work:<br>
+      <a href="https://github.com/hegl-lab/Independent-SS22-Raymarching-Flat-Surfaces" style="color: #aaa;">https://github.com/hegl-lab/Independent-SS22-Raymarching-Flat-Surfaces</a><br>
+      Original work Copyright (c) 2025 Fabian Lander, Mara-Eliana Popescu, Diaaeldin Taha</p>
+      <p>Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:</p>
+      <p>The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.</p>
+      <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+      SOFTWARE.</p>
+    </div>
+  </footer>
+  
+  <script>
+    // License toggle functionality
+    document.getElementById('license-toggle').addEventListener('click', function(e) {
+      e.preventDefault();
+      const licenseText = document.getElementById('license-text');
+      if (licenseText.style.display === 'none') {
+        licenseText.style.display = 'block';
+        this.textContent = 'Hide MIT License';
+      } else {
+        licenseText.style.display = 'none';
+        this.textContent = 'MIT License';
+      }
+    });
+  </script>
 </body>
 </html>
