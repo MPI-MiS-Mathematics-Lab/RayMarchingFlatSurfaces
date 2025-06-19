@@ -6,7 +6,7 @@ dist/
 .vite/
 
 # If this folder contains only the build output
-apps/
+minified/
 
 # Local environment settings
 .env

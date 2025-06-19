@@ -1,7 +1,7 @@
 export default {
   base: process.env.NODE_ENV === 'production' ? '/apps/raymarchingflatsurfacesapp/' : '',
     build: {
-       outDir: 'apps/raymarchingflatsurfacesapp',
+       outDir: 'minified/raymarchingflatsurfacesapp',
       assetsDir: 'assets',
       sourcemap: false,  // Set to true if you need source maps
     },

@@ -1,0 +1,59 @@
+{
+  "id": "PentagonMirror",
+  "name": "Double Pentagon Mirror",
+  "description": "Two pentagons with mirror reflections on edges (explicit normals)",
+  "vertices": [
+    [1.80901700, 0.00000000],
+    [0.42705099, 1.90211303],
+    [-1.80901699, 1.17557050],
+    [-1.80901699, -1.17557050],
+    [0.42705099, -1.90211303],
+    [1.80901700, 0.00000000]
+  ],
+  "edges": [
+    {
+      "type": "mirror"
+    },
+    {
+      "type": "mirror"
+    },
+    {
+      "type": "mirror"
+    },
+    {
+      "type": "mirror"
+    },
+    {
+      "type": "mirror"
+    }
+  ],
+  "gluing": [0,1,2,3,4],
+  "normals": [
+    [0.80901699, 0.58778525],
+    [-0.30901699, 0.95105652],
+    [-1.0, 0.0],
+    [-0.30901699, -0.95105652],
+    [0.80901699, -0.58778525]
+   ],
+  "initialPosition": [0.0, 0.0, 0.0],
+  "wallHeight": 2.0,
+  "teleportThreshold": 0.1,
+  "teleportHeightRange": [0.0, 2.0],
+  "decorations": [
+    {
+      "type": "sphere",
+      "position": [0.0, 0.0],
+      "height": 1.0,
+      "radius": 0.15,
+      "animation": {
+        "enabled": false
+      }
+    },
+    {
+      "type": "hollow_cube",
+      "position": [1.5, 0.0],
+      "height": 1.0,
+      "radius": 0.12
+    }
+  ]
+}

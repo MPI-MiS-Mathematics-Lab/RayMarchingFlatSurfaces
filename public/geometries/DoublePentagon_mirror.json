@@ -1,5 +1,5 @@
 {
-  "id": "pentagon_mirror",
+  "id": "DoublePentagon_mirror",
   "name": "Double Pentagon Mirror",
   "description": "Two pentagons with mirror reflections on edges (explicit normals)",
   "vertices": [

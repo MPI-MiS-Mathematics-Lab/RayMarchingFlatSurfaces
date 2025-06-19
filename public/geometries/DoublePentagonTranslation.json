@@ -1,5 +1,5 @@
 {
-  "id": "pentagon",
+  "id": "DoublePentagonTranslation",
   "name": "Double Pentagon Translation",
   "description": "Two pentagons with translation teleportation on edges",
   "vertical_component": "line",
