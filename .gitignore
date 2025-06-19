@@ -6,7 +6,7 @@ dist/
 .vite/
 
 # If this folder contains only the build output
-raymarchingflatsurfacesapp/
+apps/
 
 # Local environment settings
 .env
