@@ -27,5 +27,3 @@ yarn-error.log*
 
 # macOS
 .DS_Store
-
-.github/workflows/
