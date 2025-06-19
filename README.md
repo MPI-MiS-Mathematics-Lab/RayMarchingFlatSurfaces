@@ -31,7 +31,7 @@ This project implements ray marching algorithms using WebGL shaders to render di
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/RayMarchingFlatSurfaces.git
+git clone https://github.com/FabianLander/RayMarchingFlatSurfaces.git
 ```
 
 2. Navigate to the project directory:
