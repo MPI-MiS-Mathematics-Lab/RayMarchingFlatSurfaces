@@ -1,5 +1,7 @@
 {
     "geometries": [
+        { "id": "torus", "name": "torus Room", "description": "A room whose floor plan is the torus." },
+        { "id": "torus3D", "name": "3D torus", "description": "A room modelled on the 3D torus. (NOTE: here, modular arithmetic would yield much better performance.)" },
         { "id": "PentagonMirror", "name": "PentagonMirror", "description": "A Mirror room whose floor plan is a pentagon." },
         { "id": "DoublePentagon_mirror", "name": "Double Pentagon Mirror", "description": "A mirror room whose floor plan is the double pentagon." },
         { "id": "cube", "name": "Cube", "description": "A room whose floor plan is the surface of a cube." },

@@ -1,0 +1,63 @@
+{
+  "id": "torus",
+  "name": "Torus Room",
+  "description": "A room whose floor plan is the torus.",
+  "initialPosition": [0.0, 0.0, 0.0],
+  "wallHeight": 2.0,
+  "fog_effect_strength": 0.02,
+  "vertical_component": "line",
+  "vertical_wrap_amount": 4.0,
+  "vertices": [
+    [2.0, 2.0],
+    [-2.0, 2.0],
+    [-2.0, -2.0],
+    [2.0, -2.0],
+    [2.0, 2.0]
+  ],
+  "gluing": [ 2, 3, 0, 1 ],
+  "normals": [
+    [0, 1],
+    [-1, 0],
+    [0, -1],
+    [1, 0]
+  ],
+  "edges": [
+    {
+      "type": "translation",
+      "vector": [0.0, -4.0]
+    },
+    {
+      "type": "translation",
+      "vector": [4.0, 0.0]
+    },
+    {
+      "type": "translation",
+      "vector": [0.0, 4.0]
+    },
+    {
+      "type": "translation",
+      "vector": [-4.0, 0.0]
+    }
+  ],
+  "decorations": [
+      {
+        "type": "hollow_cube",
+        "position": [0.0, 0.0],
+        "height": 0.0,      
+        "radius": 0.13
+      },
+    {
+    "type": "sphere",
+    "position": [1.618, 0.0],
+    "height": 0.0,
+    "radius": 0.07,
+    "animation": {
+        "enabled": true,
+        "type": "circular",
+        "speed": 1.5,
+        "radius": 1.0,
+        "center": [0.0, 0.0]
+    }
+    }
+  ]
+}
