@@ -19,6 +19,9 @@
     "three": "^0.160.1"
   },
   "devDependencies": {
-    "vite": "^5.4.19"
+    "vite": "^5.0.0"
+  },
+  "overrides": {
+    "esbuild": "^0.25.0"
   }
 }
