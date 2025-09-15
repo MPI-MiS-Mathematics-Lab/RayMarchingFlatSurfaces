@@ -98,15 +98,123 @@
       align-items: center;
       gap: 8px;
     }
-    
-    .geometry-selector select {
-      background-color: #444;
-      color: white;
-      padding: 8px;
+
+    .gallery-header {
+      width: 100%;
+      max-width: 900px;
+      text-align: left;
+      font-weight: bold;
+      color: #ddd;
+    }
+
+    .geometry-gallery-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 900px;
+      overflow: visible; /* allow nav buttons to sit slightly outside */
+    }
+
+    .geometry-gallery {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 6px 24px; /* reduced, nav now sits slightly outside */
+      scroll-snap-type: x proximity;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+
+    .geometry-gallery::-webkit-scrollbar {
+      height: 8px;
+    }
+    .geometry-gallery::-webkit-scrollbar-thumb {
+      background: #555;
       border-radius: 4px;
+    }
+
+    .gallery-card {
+      flex: 0 0 220px;
+      min-height: 110px;
+      background: #3d3d3d;
       border: 1px solid #555;
-      font-family: monospace;
-      min-width: 200px;
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      scroll-snap-align: start;
+      transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      z-index: 1; /* keep below nav */
+    }
+
+    .gallery-card:hover {
+      transform: translateY(-2px);
+      border-color: #777;
+      background: #454545;
+    }
+
+    .gallery-card.active {
+      border-color: #5a8;
+      box-shadow: 0 0 0 2px rgba(90,168,136,0.25);
+    }
+
+    .gallery-title {
+      color: #fff;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .gallery-desc {
+      color: #aaa;
+      font-size: 12px;
+      line-height: 1.25;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+
+    .gallery-thumb {
+      width: 100%;
+      height: 120px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #555;
+      background: #2e2e2e;
+    }
+    .gallery-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .gallery-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0,0,0,0.5);
+      border: 1px solid #666;
+      color: #ddd;
+      width: 28px;
+      height: 56px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      z-index: 10; /* ensure above cards */
+    }
+    .gallery-nav.left { left: -18px; }
+    .gallery-nav.right { right: -18px; }
+    .gallery-nav:hover { background: rgba(0,0,0,0.65); }
+
+    @media (max-width: 640px) {
+      .gallery-card { flex-basis: 70vw; }
+      .gallery-nav { display: none; }
     }
     
     .geometry-info {
@@ -191,6 +299,37 @@
     .browser-compatibility .incompatible {
       color: #e55;
     }
+
+    /* External demo overlay inside the canvas container */
+    .external-container {
+      position: absolute;
+      inset: 0;
+      display: none;
+      background: #000; /* hide underlying canvas */
+      z-index: 500; /* above stats/info */
+    }
+    .external-container.active { display: block; }
+    #external-frame {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #000;
+    }
+    .external-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 510;
+      background: rgba(0,0,0,0.6);
+      color: #eee;
+      border: 1px solid #666;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-family: monospace;
+    }
   </style>
 </head>
 <body>
@@ -204,14 +343,16 @@
   </div>
   
   <div class="geometry-selector">
-    <label for="geometry-select">Select Geometry:</label>
-    <select id="geometry-select">
-      <option value="square">Square Room</option>
-      <option value="L_shape">L-Shaped Room</option>
-      <option value="pentagon">Pentagon Translation</option>
-      <option value="pentagon_mirror">Pentagon Mirror</option>
-    </select>
-    <div id="geometry-description" class="geometry-info">A simple square room with teleportation on edges</div>
+    <div class="gallery-header">Examples</div>
+    <div class="geometry-gallery-wrapper">
+      <button class="gallery-nav left" aria-label="Scroll left">◀</button>
+      <div id="geometry-gallery" class="geometry-gallery" aria-label="Geometry gallery" role="list"></div>
+      <button class="gallery-nav right" aria-label="Scroll right">▶</button>
+    </div>
+    <div id="geometry-description" class="geometry-info">Choose an example from the gallery</div>
+
+    <!-- Fallback select (hidden) for non-JS environments -->
+    <select id="geometry-select" style="display:none;"></select>
   </div>
   
   <div class="toggle-container">
@@ -235,6 +376,11 @@
       Teleport: ON
     </div>
     <div id="error"></div>
+    <!-- External demo overlay (iframe) -->
+    <div id="external-container" class="external-container" aria-hidden="true">
+      <button id="external-close" class="external-close" title="Back to renderer">Back</button>
+      <iframe id="external-frame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer"></iframe>
+    </div>
     <!-- Canvas will be inserted here by Three.js -->
   </div>
   

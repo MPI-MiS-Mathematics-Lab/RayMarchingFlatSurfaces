@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Double-Pentagon Prism</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body { height: 100%; margin: 0; background: #0d0f12; }
+    #app { position: fixed; inset: 0; }
+    .hud {
+      position: fixed; left: 12px; bottom: 12px; color: #a8b3c7;
+      font: 12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      opacity: .85; user-select: none;
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.164.1/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+<div id="app"></div>
+<div class="hud">
+  Mouse to orbit. Shader runs at reduced DPR by default (tweak in code).
+</div>
+
+<script type="module">
+import * as THREE from "three";
+
+/* -------------------------
+   Renderer / Scene / Camera
+------------------------- */
+const DPR = Math.min(window.devicePixelRatio || 1, 1.5); // raise to 2.0+ if your GPU is comfy
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+renderer.setPixelRatio(DPR);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.NoToneMapping;             // we tone-map in-shader
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // keep linear; shader does gamma out
+document.getElementById("app").appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+// Fullscreen quad with an ortho camera
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+/* -------------------------
+   Fullscreen Quad Geometry
+------------------------- */
+const quad = new THREE.PlaneGeometry(2, 2);
+
+/* -------------------------
+   Shaders (GLSL 1.00)
+------------------------- */
+const vertexShader = /* glsl */`
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+// === Fragment shader ===
+const fragmentShader = /* glsl */`
+precision highp float;
+
+varying vec2 vUv;
+
+uniform float uTime;
+uniform vec2  uResolution; // in pixels
+uniform vec4  uMouse;      // in pixels (x, y), unused z,w kept for parity
+
+// -------------------------------------------------------
+// Global scale & optics
+const float poly_zoom    = 1.5;   // overall size
+const float inner_sphere = 0.25;  // HALF-SIZE of inner cube
+const float refr_index   = 0.9;   // glass IOR (outside assumed 1.0)
+const float rrefr_index  = 1.0 / refr_index;
+
+// Small dials for overall balance (defaults ~old feel)
+const float ENV_SCALE           = 0.85; // environment brightness (sky/ground/sun)
+const float REFRACT_ENV_SCALE   = 0.20; // strength of refracted environment
+const float GLASS_REFLECT_SCALE = 0.85; // outer reflection strength
+
+// ---------- "Mirror room" base texture ----------
+const float BASE_TEX_SCALE      = 6.0;  // tiling density on the bottom cap
+const float BASE_TEX_BRIGHTNESS = 1.0;  // strength injected through refraction
+const float BASE_TEX_LINE_W     = 0.03; // grid line width in tile units
+const float BASE_MIRRORNESS     = 0.35; // 0=matte tiles, 1=mirror-like tiles
+
+#define MAX_BOUNCES2 6
+// -------------------------------------------------------
+
+#define TIME        uTime
+#define RESOLUTION  uResolution
+#define PI          3.141592654
+#define TAU         (2.0*PI)
+
+// ---------- HSV helper ----------
+const vec4 hsv2rgb_K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
+vec3 hsv2rgb(vec3 c) {
+  vec3 p = abs(fract(c.xxx + hsv2rgb_K.xyz) * 6.0 - hsv2rgb_K.www);
+  return c.z * mix(hsv2rgb_K.xxx, clamp(p - hsv2rgb_K.xxx, 0.0, 1.0), c.y);
+}
+#define HSV2RGB(c) (c.z * mix(hsv2rgb_K.xxx, clamp(abs(fract(c.xxx + hsv2rgb_K.xyz)*6.0 - hsv2rgb_K.www) - hsv2rgb_K.xxx, 0.0, 1.0), c.y))
+
+// ---------- marching params ----------
+#define TOLERANCE2       0.0005
+#define MAX_RAY_MARCHES2 50
+#define NORM_OFF2        0.005
+#define BACKSTEP2
+
+#define TOLERANCE3       0.0005
+#define MAX_RAY_LENGTH3  10.0
+#define MAX_RAY_MARCHES3 90
+#define NORM_OFF3        0.005
+
+// ---------- scene & palette ----------
+const vec3 rayOrigin    = vec3(0.0, 1.0, -5.0);
+const vec3 sunDir       = normalize(-rayOrigin);
+
+// Cool/blue-ish ambience
+const vec3 sunCol       = HSV2RGB(vec3(0.60, 0.25, 1.0e-2)); // tiny bounded sun energy
+const vec3 bottomBoxCol = HSV2RGB(vec3(0.60, 0.40, 0.55));
+const vec3 topBoxCol    = HSV2RGB(vec3(0.60, 0.80, 0.95));
+const vec3 glowCol0     = HSV2RGB(vec3(0.60, 0.50, 1e-3));
+const vec3 glowCol1     = HSV2RGB(vec3(0.60, 0.60, 1e-3));
+const vec3 beerCol      = -HSV2RGB(vec3(0.60, 0.25, 1.7));
+
+// Rainbow face palette
+const float RAINBOW_SAT = 0.90;
+const float RAINBOW_VAL = 0.95;
+const float RAINBOW_ROT = 0.00;  // steps/6.0
+
+// ---------- globals ----------
+mat3 g_rot;
+vec2 g_gd;
+int  g_iter; // iteration count for outer march (WebGL1 doesn't like 'out int' returns)
+
+// ---------- utils ----------
+mat3 rot(vec3 d, vec3 z) {
+  vec3  v = cross(z, d);
+  float c = dot(z, d);
+  float k = 1.0/(1.0 + c);
+  return mat3( v.x*v.x*k + c,     v.y*v.x*k - v.z,  v.z*v.x*k + v.y,
+               v.x*v.y*k + v.z,   v.y*v.y*k + c,    v.z*v.y*k - v.x,
+               v.x*v.z*k - v.y,   v.y*v.z*k + v.x,  v.z*v.z*k + c );
+}
+
+vec3 aces_approx(vec3 v) {
+  v = max(v, 0.0); v *= 0.6;
+  float a=2.51,b=0.03,c=2.43,d=0.59,e=0.14;
+  return clamp((v*(a*v+b))/(v*(c*v+d)+e), 0.0, 1.0);
+}
+
+float box2D(vec2 p, vec2 b) { // env helper
+  vec2 d = abs(p)-b;
+  return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+}
+float boxSDF(vec3 p, vec3 b){
+  vec3 q = abs(p) - b;
+  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+float segDist2D(vec2 p, vec2 a, vec2 b) {
+  vec2 e = b - a;
+  float t = clamp(dot(p - a, e) / dot(e, e), 0.0, 1.0);
+  vec2  q = a + t * e;
+  return length(p - q);
+}
+float segDist3D(vec3 p, vec3 a, vec3 b){
+  vec3 e = b - a;
+  float t = clamp(dot(p - a, e) / dot(e, e), 0.0, 1.0);
+  vec3  q = a + t * e;
+  return length(p - q);
+}
+
+// ======================================================
+//      DOUBLE-PENTAGON as a SINGLE CENTERED OCTAGON
+//      (concave 8-gon in xz, extruded to ±H_HALF in y)
+// ======================================================
+const float R_PENTA   = 1.0;  // base pentagon circumradius
+const float H_HALF    = 0.75; // half-height of prism
+const int   SHARED_EDGE = 0;  // which pentagon side is shared (0..4)
+
+vec2 pentA_raw(int k) {
+  const float PHI = 0.0; // pose angle
+  float a = PHI + TAU * (float(k) / 5.0);
+  return R_PENTA * vec2(cos(a), sin(a));
+}
+vec2 sharedMid2D_raw() {
+  vec2 a = pentA_raw(SHARED_EDGE);
+  vec2 b = pentA_raw((SHARED_EDGE + 1) % 5);
+  return 0.5*(a+b);
+}
+vec2 reflectAcrossLine(vec2 p, vec2 a, vec2 b) {
+  vec2 l = normalize(b - a);
+  vec2 n = vec2(-l.y, l.x);
+  vec2 m = 0.5 * (a + b);
+  return p - 2.0 * n * dot(p - m, n);
+}
+vec2 pentB_raw(int k) { // mirror A across the shared side
+  vec2 a = pentA_raw(SHARED_EDGE);
+  vec2 b = pentA_raw((SHARED_EDGE + 1) % 5);
+  return reflectAcrossLine(pentA_raw(k), a, b);
+}
+
+// Eight outer vertices in CCW order, centered at the join midpoint
+vec2 octV(int j){
+  vec2 mid = sharedMid2D_raw();
+       if (j==0) return pentA_raw((SHARED_EDGE+1)%5) - mid;
+  else if (j==1) return pentA_raw((SHARED_EDGE+2)%5) - mid;
+  else if (j==2) return pentA_raw((SHARED_EDGE+3)%5) - mid;
+  else if (j==3) return pentA_raw((SHARED_EDGE+4)%5) - mid;
+  else if (j==4) return pentA_raw( SHARED_EDGE      ) - mid;
+  else if (j==5) return pentB_raw((SHARED_EDGE+4)%5) - mid;
+  else if (j==6) return pentB_raw((SHARED_EDGE+3)%5) - mid;
+  else           return pentB_raw((SHARED_EDGE+2)%5) - mid; // j==7
+}
+
+float sdOctagon2D(vec2 p) {
+  float d = 1e19;
+  bool inside = false;
+  vec2 v0 = octV(7);
+  for (int i=0; i<8; ++i) {
+    vec2 v1 = octV(i);
+    d = min(d, segDist2D(p, v0, v1));
+    bool cond = ((v0.y > p.y) != (v1.y > p.y));
+    if (cond) {
+      float xint = (v1.x - v0.x)*(p.y - v0.y) / (v1.y - v0.y) + v0.x;
+      if (p.x < xint) inside = !inside;
+    }
+    v0 = v1;
+  }
+  return inside ? -d : d;
+}
+
+float sdOctagonPrism(vec3 p) {
+  float d2 = sdOctagon2D(p.xz);        // centered shape
+  vec2  d  = vec2(d2, abs(p.y) - H_HALF);
+  float outside = length(max(d, 0.0));
+  float inside  = min(max(d.x, d.y), 0.0);
+  return outside + inside;             // signed SDF
+}
+
+void octEdgesAndCorners(vec3 p, out float dEdge, out float dCorner) {
+  dEdge = 1e19; dCorner = 1e19;
+  for (int i=0; i<8; ++i) {
+    vec2 a2 = octV(i);
+    vec2 b2 = octV((i+1)%8);
+    // corners (top/bottom)
+    vec3 vt = vec3(a2.x,  H_HALF, a2.y);
+    vec3 vb = vec3(a2.x, -H_HALF, a2.y);
+    dCorner = min(dCorner, length(p - vt));
+    dCorner = min(dCorner, length(p - vb));
+    // vertical edge at vertex i
+    dEdge = min(dEdge, segDist3D(p, vb, vt));
+    // rim edges (top & bottom)
+    vec3 ttA = vec3(a2.x,  H_HALF, a2.y);
+    vec3 ttB = vec3(b2.x,  H_HALF, b2.y);
+    vec3 bbA = vec3(a2.x, -H_HALF, a2.y);
+    vec3 bbB = vec3(b2.x, -H_HALF, b2.y);
+    dEdge = min(dEdge, segDist3D(p, ttA, ttB));
+    dEdge = min(dEdge, segDist3D(p, bbA, bbB));
+  }
+}
+
+// Return (face, edge, corner) like the original pipeline
+vec3 shape(vec3 pos) {
+  pos *= g_rot;
+  pos /= poly_zoom;
+
+  float dFace = sdOctagonPrism(pos); // signed
+  float dEdge, dCorner;
+  octEdgesAndCorners(pos, dEdge, dCorner);
+
+  return vec3(dFace, dEdge, dCorner) * poly_zoom;
+}
+
+// ======================================================
+//                     INNER CUBE
+// ======================================================
+float innerCubeSDF(vec3 p){
+  vec3 pr = p * g_rot;    // rotate with the prism
+  return boxSDF(pr, vec3(inner_sphere));
+}
+vec3 innerCubeNormal(vec3 p){
+  vec2 e = vec2(NORM_OFF2, 0.0);
+  float dx = innerCubeSDF(p + e.xyy) - innerCubeSDF(p - e.xyy);
+  float dy = innerCubeSDF(p + e.yxy) - innerCubeSDF(p - e.yxy);
+  float dz = innerCubeSDF(p + e.yyx) - innerCubeSDF(p - e.yyx);
+  return normalize(vec3(dx,dy,dz));
+}
+vec3 innerCubeFaceColor(vec3 p){
+  vec3 pl = p * g_rot; // cube-local coords
+  vec3 a  = abs(pl);
+  int idx;
+  if (a.x > a.y && a.x > a.z)      idx = (pl.x > 0.0) ? 0 : 1; // +X/-X
+  else if (a.y > a.z)              idx = (pl.y > 0.0) ? 2 : 3; // +Y/-Y
+  else                             idx = (pl.z > 0.0) ? 4 : 5; // +Z/-Z
+  float hue = (float(idx) + RAINBOW_ROT) / 6.0;
+  return HSV2RGB(vec3(fract(hue), RAINBOW_SAT, RAINBOW_VAL));
+}
+
+// ======================================================
+//                   ENVIRONMENT / RENDER
+// ======================================================
+vec3 render0(vec3 ro, vec3 rd) {
+  vec3 col = vec3(0.0);
+
+  // ground/sky bands (same structure as earlier shaders)
+  float srd = sign(rd.y);
+  float tp  = -(ro.y - 6.0)/max(abs(rd.y), 1e-4);
+
+  if (srd < 0.0) {
+    col += bottomBoxCol * exp(-0.5 * length((ro + tp*rd).xz));
+  }
+
+  if (srd > 0.0) {
+    vec3 pos = ro + tp*rd;
+    vec2 pp  = pos.xz;
+    float db = box2D(pp, vec2(5.0, 9.0)) - 3.0;
+    col += topBoxCol * rd.y*rd.y * smoothstep(0.25, 0.0, db);
+    col += 0.2 * topBoxCol * exp(-0.5 * max(db, 0.0));
+    col += 0.05 * sqrt(topBoxCol) * max(-db, 0.0);
+  }
+
+  // bounded sun lobe (no singularity)
+  float s = max(0.0, dot(sunDir, rd));
+  col += sunCol * pow(s, 600.0);
+
+  return col * ENV_SCALE;
+}
+
+// ---------- "mirror room" base texture (procedural) ----------
+float gridMask(vec2 uv, float w) {
+  uv = fract(uv) - 0.5;
+  vec2 f = abs(uv);
+  float d = 0.5 - max(f.x, f.y);          // 0 at border, >0 inside cell
+  return 1.0 - smoothstep(0.0, w, d);     // 1 near border lines
+}
+vec3 baseTexture(vec2 uv) {
+  uv *= BASE_TEX_SCALE;
+
+  // Checkerboard
+  vec2 q = floor(uv);
+  float checker = mod(q.x + q.y, 2.0);
+  vec3  col     = mix(vec3(0.10), vec3(0.92), checker);  // dark/light tiles
+
+  // Dark grid lines
+  float grid = gridMask(uv, BASE_TEX_LINE_W);
+  col = mix(col, vec3(0.04), grid);
+
+  // Subtle diagonal slash as an orientation cue
+  float diag = 0.48 - abs(fract(uv.x + uv.y) - 0.5);
+  float slash = smoothstep(0.0, 0.015, diag);
+  col = mix(col, vec3(0.02), 0.5 * slash);
+
+  return col;
+}
+
+// ---------- inner (glass+object) pass ----------
+float df2(vec3 p) {
+  vec3 ds = shape(p);
+
+  // *** Original edge channel feel ***
+  float d2 = ds.y - 5.0e-3;         // edge bias: brings "rim" slightly closer
+  float d0 = min(-ds.x, d2);        // reflect off faces/edges
+
+  float d1 = innerCubeSDF(p);       // inner (opaque) object
+
+  g_gd = min(g_gd, vec2(d2, d1));   // gd2.x = edge proximity, gd2.y = inner proximity
+  return min(d0, d1);
+}
+
+float rayMarch2(vec3 ro, vec3 rd, float tinit) {
+  float t = tinit;
+  #if defined(BACKSTEP2)
+    vec2 dti = vec2(1e10,0.0);
+  #endif
+  for (int i=0; i<MAX_RAY_MARCHES2; ++i) {
+    float d = df2(ro + rd*t);
+    #if defined(BACKSTEP2)
+      if (d < dti.x) dti = vec2(d,t);
+    #endif
+    if (d < TOLERANCE2) break;
+    t += d;
+  }
+  #if defined(BACKSTEP2)
+    if (t==tinit) t = dti.y;
+  #endif
+  return t;
+}
+
+vec3 normal2(vec3 pos) {
+  vec2 e = vec2(NORM_OFF2,0.0);
+  vec3 n;
+  n.x = df2(pos + e.xyy) - df2(pos - e.xyy);
+  n.y = df2(pos + e.yxy) - df2(pos - e.yxy);
+  n.z = df2(pos + e.yyx) - df2(pos - e.yyx);
+  return normalize(n);
+}
+
+vec3 render2(vec3 ro, vec3 rd, float db) {
+  vec3 agg = vec3(0.0);
+  float ragg = 1.0;
+  float tagg = 0.0;
+
+  for (int bounce=0; bounce<MAX_BOUNCES2; ++bounce) {
+    if (ragg < 0.1) break;
+
+    g_gd     = vec2(1e3);
+    float t2 = rayMarch2(ro, rd, min(db + 0.05, 0.3));
+    vec2 gd2 = g_gd;
+    tagg    += t2;
+
+    vec3 p2  = ro + rd*t2;
+    vec3 n2  = normal2(p2);
+
+    // Prism-local coordinates (same convention as shape(): rotate, then scale)
+    vec3 pr = (p2 * g_rot) / poly_zoom;
+
+    // Are we on a cap? (±H_HALF in local y) — we texture the BOTTOM cap.
+    const float CAP_EPS = 0.004;  // a little looser than TOLs for robustness
+    bool onCap  = abs(abs(pr.y) - H_HALF) < CAP_EPS && (sdOctagon2D(pr.xz) <= 0.0);
+    bool onBase = onCap && (pr.y < 0.0);  // bottom cap only
+
+    // Inner cube hit?
+    bool hitInner = abs(innerCubeSDF(p2)) <= TOLERANCE2*2.0;
+    if (hitInner) {
+      vec3 nI   = innerCubeNormal(p2);
+      vec3 base = innerCubeFaceColor(p2);
+      float lam = clamp(dot(nI, sunDir), 0.0, 1.0);
+      vec3 icol = (0.25 + 0.75*lam) * base; // diffuse+ambient balance
+
+      vec3 beer = ragg * exp(0.2*beerCol*tagg);
+      agg += beer * icol;
+      break; // opaque inner object ends the path
+    }
+
+    // Otherwise: we are inside the glass
+    vec3 r2  = reflect(rd, n2);
+    vec3 rr2 = refract(rd, n2, rrefr_index);
+    float fre2 = 1.0 + dot(n2, rd);
+
+    vec3 beer = ragg * exp(0.2*beerCol*tagg);
+
+    // *** Original edge glow (exact same recipe as pentagon) ***
+    agg += glowCol1 * beer *
+           ((1.0 + tagg*tagg*4.0e-2) * 6.0 / max(gd2.x, 5.0e-4 + tagg*tagg*2.0e-4/ragg));
+
+    // Environment / base texture seen through refraction
+    vec3 ocol;
+    if (onBase) {
+      // “Mirror room floor”: checker+grid with a bit of mirroriness.
+      vec3 tex  = baseTexture(pr.xz);
+      vec3 refl = render0(p2, r2);
+      float gloss = BASE_MIRRORNESS * (0.2 + 0.8 * clamp(1.0 + dot(n2, rd), 0.0, 1.0));
+      vec3 baseCol = mix(tex, refl, gloss);
+      ocol = BASE_TEX_BRIGHTNESS * baseCol;
+    } else {
+      // Original refracted environment
+      ocol = REFRACT_ENV_SCALE * render0(p2, rr2);
+    }
+
+    if (gd2.y <= TOLERANCE2) {
+      ragg *= 1.0 - 0.9*fre2;   // favor transmission near inner object
+    } else {
+      agg  += beer * ocol;
+      ragg *= 0.8;
+    }
+
+    ro = p2;
+    rd = r2;
+    db = gd2.x;
+  }
+
+  return agg;
+}
+
+// ---------- outer shell pass ----------
+float df3(vec3 p) {
+  vec3 ds = shape(p);
+  g_gd = min(g_gd, ds.yz);
+  const float sw = 0.02;
+  float d1 = min(ds.y, ds.z) - sw;
+  float d0 = ds.x;
+  d0 = min(d0, ds.y);
+  d0 = min(d0, ds.z);
+  return d0;
+}
+
+float rayMarch3(vec3 ro, vec3 rd, float tinit) {
+  float t = tinit;
+  g_iter = 0;
+  for (int i=0; i<MAX_RAY_MARCHES3; ++i) {
+    float d = df3(ro + rd*t);
+    if (d < TOLERANCE3 || t > MAX_RAY_LENGTH3) { g_iter = i; break; }
+    t += d;
+    g_iter = i;
+  }
+  return t;
+}
+
+vec3 normal3(vec3 pos) {
+  vec2 e = vec2(NORM_OFF3,0.0);
+  vec3 n;
+  n.x = df3(pos + e.xyy) - df3(pos - e.xyy);
+  n.y = df3(pos + e.yxy) - df3(pos - e.yxy);
+  // fixed tiny typo from the original
+  n.z = df3(pos + e.yyx) - df3(pos - e.yyx);
+  return normalize(n);
+}
+
+vec3 render3(vec3 ro, vec3 rd) {
+  vec3 skyCol = render0(ro, rd);
+  vec3 col    = skyCol;
+
+  g_gd        = vec2(1e3);
+  float t1    = rayMarch3(ro, rd, 0.1);
+  vec2 gd1    = g_gd;
+  vec3 p1     = ro + t1*rd;
+  vec3 n1     = normal3(p1);
+  vec3 r1     = reflect(rd, n1);
+  vec3 rr1    = refract(rd, n1, refr_index);
+  float fre1  = 1.0 + dot(rd, n1);
+  fre1       *= fre1;
+
+  float ifo = mix(0.5, 1.0, smoothstep(1.0, 0.9, float(g_iter)/float(MAX_RAY_MARCHES3)));
+
+  if (t1 < MAX_RAY_LENGTH3) {
+    col = GLASS_REFLECT_SCALE * render0(p1, r1) * (0.5 + 0.5*fre1) * ifo;
+
+    vec3 icol = render2(p1, rr1, gd1.x);
+    // WebGL1 can't branch on vec==vec; use length() instead of (rr1 != vec3(0.0))
+    if (gd1.x > TOLERANCE3 && gd1.y > TOLERANCE3 && length(rr1) > 0.0) {
+      col += icol * (1.0 - 0.75*fre1) * ifo;
+    }
+  }
+
+  // small outer glow
+  col += (glowCol0 + 1.0*fre1*(glowCol0)) / max(gd1.x, 3.0e-4);
+  return col;
+}
+
+vec3 effect(vec2 p, vec2 pp) {
+  const float fov = 2.0;
+
+  const vec3 up = vec3(0., 1., 0.);
+  const vec3 la = vec3(0.0);
+
+  const vec3 ww = normalize(normalize(la - rayOrigin));
+  const vec3 uu = normalize(cross(up, ww));
+  const vec3 vv = cross(ww, uu);
+
+  vec3 rd = normalize(-p.x*uu + p.y*vv + fov*ww);
+
+  vec3 col = render3(rayOrigin, rd);
+  col -= 2.0e-2 * vec3(2.,3.,1.) * (length(p) + 0.25);
+  col  = aces_approx(col);
+  col  = sqrt(col); // gamma ~2.0
+  return col;
+}
+// ---------- main ----------
+void render(out vec4 fragColor, in vec2 fragCoord) {
+  vec2 q  = fragCoord / RESOLUTION.xy;
+  vec2 p  = -1.0 + 2.0*q;
+  vec2 pp = p;
+  p.x *= RESOLUTION.x/RESOLUTION.y;
+
+  // Mouse-controlled orientation (natural direction)
+  vec2 m  = (uMouse.x + uMouse.y > 0.0) ? uMouse.xy : 0.5 * RESOLUTION.xy;
+  vec2 mn = clamp(m / RESOLUTION.xy, 0.0, 1.0);
+
+  float yaw   = (mn.x - 0.5) * TAU;
+  float pitch = (0.5 - mn.y) * (PI * 0.95);
+
+  vec3 d = normalize(vec3( sin(yaw)*cos(pitch),
+                           sin(pitch),
+                           cos(yaw)*cos(pitch) ));
+  vec3 zref = vec3(0,0,1);
+  if (dot(d, zref) < -0.9995) zref = vec3(0,1,0);
+  g_rot = rot(zref, d);
+
+  vec3 col = effect(p, pp);
+  fragColor = vec4(col, 1.0);
+}
+
+void main() {
+  vec2 fragCoord = vUv * RESOLUTION;
+  vec4 fragColor;
+  render(fragColor, fragCoord);
+  gl_FragColor = fragColor;
+}
+`;
+
+/* -------------------------
+   Material & Mesh
+------------------------- */
+const uniforms = {
+  uTime:       { value: 0 },
+  uResolution: { value: new THREE.Vector2(window.innerWidth * DPR, window.innerHeight * DPR) },
+  uMouse:      { value: new THREE.Vector4(0, 0, 0, 0) }
+};
+
+const material = new THREE.ShaderMaterial({
+  vertexShader,
+  fragmentShader,
+  uniforms,
+  depthWrite: false
+});
+
+const mesh = new THREE.Mesh(quad, material);
+scene.add(mesh);
+
+/* -------------------------
+   Mouse
+------------------------- */
+let mouseDown = false;
+
+function setMouseFromEvent(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * DPR;
+  const y = (rect.bottom - e.clientY) * DPR;
+  uniforms.uMouse.value.set(x, y, mouseDown ? 1 : 0, 0);
+}
+
+renderer.domElement.addEventListener("pointerdown", e => {
+  mouseDown = true; setMouseFromEvent(e);
+});
+renderer.domElement.addEventListener("pointermove", e => {
+  setMouseFromEvent(e);
+});
+window.addEventListener("pointerup", e => {
+  mouseDown = false; setMouseFromEvent(e);
+});
+
+/* -------------------------
+   Resize
+------------------------- */
+function onResize() {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  uniforms.uResolution.value.set(window.innerWidth * DPR, window.innerHeight * DPR);
+}
+window.addEventListener("resize", onResize);
+
+/* -------------------------
+   Animate
+------------------------- */
+const clock = new THREE.Clock();
+function tick() {
+  uniforms.uTime.value = clock.getElapsedTime();
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>

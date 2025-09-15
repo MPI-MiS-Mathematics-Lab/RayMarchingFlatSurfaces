@@ -1,0 +1,25 @@
+{
+  "externals": [
+    {
+      "id": "index-translation",
+      "name": "Analytic Double-Pentagon (standalone)",
+      "description": "These render inside this window via iframe and use ray tracing.",
+      "path": "standalone/index-translation.html",
+      "thumbnail": "thumbnails/index-translation.jpg"
+    },
+    {
+      "id": "index-reflection",
+      "name": "Mirror Reflection (standalone)",
+      "description": "These render inside this window via iframe and use ray tracing.",
+      "path": "standalone/index-reflection.html",
+      "thumbnail": "thumbnails/index-reflection.jpg"
+    },
+    {
+      "id": "index-prism",
+      "name": "Caps-Identified Double-Pentagon (standalone)",
+      "description": "These render inside this window via iframe and use ray tracing.",
+      "path": "standalone/index-prism.html",
+      "thumbnail": "thumbnails/index-prism.jpg"
+    }
+  ]
+}

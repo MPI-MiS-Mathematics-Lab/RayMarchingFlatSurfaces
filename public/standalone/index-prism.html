@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Caps-Identified Double-Pentagon – Three.js</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body { height: 100%; margin: 0; background: #0d0f12; }
+    #app { position: fixed; inset: 0; }
+    .hud {
+      position: fixed; left: 12px; bottom: 12px; color: #a8b3c7;
+      font: 12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      opacity: .85; user-select: none;
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.164.1/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+import * as THREE from "three";
+
+/* -------------------------
+   Renderer / Scene / Camera
+------------------------- */
+const DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+renderer.setPixelRatio(DPR);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.NoToneMapping;             // tone-mapping handled in shader
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // gamma handled in shader
+document.getElementById("app").appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+/* -------------------------
+   Fullscreen Quad
+------------------------- */
+const quad = new THREE.PlaneGeometry(2, 2);
+
+/* -------------------------
+   Shaders
+------------------------- */
+const vertexShader = /* glsl */`
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+const fragmentShader = /* glsl */`
+precision highp float;
+varying vec2 vUv;
+
+uniform float uTime;
+uniform vec2  uResolution; // pixels
+uniform vec4  uMouse;      // pixels (x,y), bottom-left origin
+
+#define RESOLUTION  uResolution
+#define TIME        uTime
+#define PI          3.141592654
+#define TAU         (2.0*PI)
+
+// -------------------------------------------------------
+const float poly_zoom    = 1.5;    // overall prism scale
+const float inner_sphere = 0.25;   // HALF-SIZE of inner cube (OBB)
+
+// Env look
+const float ENV_SCALE     = 0.85;
+const vec3  rayOrigin     = vec3(0.0, 1.0, -5.0);
+const vec3  sunDir        = normalize(-rayOrigin);
+const vec3  sunCol        = vec3(0.60, 0.75, 1.00) * 1.0e-2;
+const vec3  bottomBoxCol  = vec3(0.35, 0.50, 0.70);
+const vec3  topBoxCol     = vec3(0.20, 0.35, 0.80);
+
+// Prism geometry (centered “double pentagon” = concave octagon)
+const float R_PENTA = 1.0;   // pentagon circumradius in xz
+const float H_HALF  = 0.75;  // half height (caps at ±H_HALF)
+const int   OCT_N   = 8;
+const int   SHARED_EDGE = 0;
+
+// -------- Cap identification controls --------
+const bool CAP_IDENTIFY = true;            // identify top & bottom by translation
+const vec2 CAP_SHIFT_XZ = vec2(0.0, 0.0);  // optional horizontal shift (top->bottom adds, bottom->top subtracts)
+
+// Screen-space robust tolerances (depend on resolution)
+float pxY()       { return 1.0 / RESOLUTION.y; }
+float SIDE_S_EPS(){ return 2.0 * pxY(); }      // slack on segment param s
+float PUSH_EPS()  { return 3.0 * pxY(); }      // push inside after events
+float CAP_BAND()  { return 2.5 * pxY() + 1.5e-3; } // allow sheen near cap rim
+float CAP_BIAS()  { return 2.0 * pxY(); }      // prefer cap if tie with side
+
+// Wall sheen controls
+const float WALL_SPEC_GAIN   = 1.50;
+const float WALL_SPEC_TINT   = 0.10;
+const vec3  WALL_TINT_COLOR  = vec3(0.90, 0.96, 1.00);
+
+// Cap sheen controls
+const float CAP_SPEC_GAIN    = 0.50;
+const float CAP_SPEC_TINT    = 0.50;
+const vec3  CAP_TINT_COLOR   = vec3(0.92, 0.96, 1.00);
+
+// Schlick base reflectivity for dielectrics
+const float F0               = 0.04;
+
+// Rainbow palette (cube faces)
+const float RAINBOW_SAT = 0.90;
+const float RAINBOW_VAL = 0.95;
+const float RAINBOW_ROT = 0.00;
+
+mat3 g_rot; // mouse rotation
+
+// -------------------- small helpers --------------------
+const vec4 hsv2rgb_K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
+vec3 HSV2RGB(vec3 c) {
+  vec3 p = abs(fract(c.xxx + hsv2rgb_K.xyz) * 6.0 - hsv2rgb_K.www);
+  return c.z * mix(hsv2rgb_K.xxx, clamp(p - hsv2rgb_K.xxx, 0.0, 1.0), c.y);
+}
+mat3 rot(vec3 zTo, vec3 zref) {
+  vec3 v = cross(zref, zTo);
+  float c = dot(zref, zTo);
+  float k = 1.0/(1.0 + c);
+  return mat3( v.x*v.x*k + c,     v.y*v.x*k - v.z,  v.z*v.x*k + v.y,
+               v.x*v.y*k + v.z,   v.y*v.y*k + c,    v.z*v.y*k - v.x,
+               v.x*v.z*k - v.y,   v.y*v.z*k + v.x,  v.z*v.z*k + c );
+}
+mat3 transpose3(mat3 m){
+  return mat3(m[0][0],m[1][0],m[2][0],
+              m[0][1],m[1][1],m[2][1],
+              m[0][2],m[1][2],m[2][2]);
+}
+vec3 aces_approx(vec3 v) {
+  v = max(v, 0.0); v *= 0.6;
+  float a=2.51,b=0.03,c=2.43,d=0.59,e=0.14;
+  return clamp((v*(a*v+b))/(v*(c*v+d)+e), 0.0, 1.0);
+}
+float box2D(vec2 p, vec2 b) {
+  vec2 d = abs(p)-b;
+  return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+}
+float cross2(vec2 a, vec2 b){ return a.x*b.y - a.y*b.x; }
+
+// Robust environment
+vec3 renderEnv(vec3 ro, vec3 rd) {
+  const float HORIZON_SOFT = 0.02;
+  float k = smoothstep(-HORIZON_SOFT, HORIZON_SOFT, rd.y);
+
+  vec3 base = mix(bottomBoxCol, topBoxCol, k);
+
+  float ay = max(abs(rd.y), 1.0e-3);
+  float tp = (6.0 - ro.y) / ay;
+  vec3  pos = ro + tp * rd;
+
+  vec3 ground = bottomBoxCol * exp(-0.5 * length(pos.xz));
+  float db = box2D(pos.xz, vec2(5.0, 9.0)) - 3.0;
+  vec3 sky  = topBoxCol * (rd.y*rd.y) * smoothstep(0.25, 0.0, db)
+            + 0.2 * topBoxCol * exp(-0.5 * max(db, 0.0))
+            + 0.05 * sqrt(topBoxCol) * max(-db, 0.0);
+
+  vec3 col = base + (1.0 - k) * ground + k * sky;
+
+  float s = max(0.0, dot(sunDir, rd));
+  col += sunCol * pow(s, 600.0);
+
+  return col * ENV_SCALE;
+}
+
+// -------------------- centered double-pentagon (octagon) --------------------
+vec2 pentA_raw(int k) {
+  const float PHI = 0.0;
+  float a = PHI + TAU * (float(k)/5.0);
+  return R_PENTA * vec2(cos(a), sin(a));
+}
+vec2 reflectAcrossLine(vec2 p, vec2 a, vec2 b) {
+  vec2 l = normalize(b - a);
+  vec2 n = vec2(-l.y, l.x);
+  vec2 m = 0.5*(a + b);
+  return p - 2.0 * n * dot(p - m, n);
+}
+vec2 pentB_raw(int k) {
+  vec2 a = pentA_raw(SHARED_EDGE);
+  vec2 b = pentA_raw((SHARED_EDGE + 1) % 5);
+  return reflectAcrossLine(pentA_raw(k), a, b);
+}
+vec2 sharedMid2D_raw() {
+  vec2 a = pentA_raw(SHARED_EDGE);
+  vec2 b = pentA_raw((SHARED_EDGE + 1) % 5);
+  return 0.5*(a + b);
+}
+vec2 octV(int j){
+  vec2 mid = sharedMid2D_raw();
+       if (j==0) return pentA_raw((SHARED_EDGE+1)%5) - mid;
+  else if (j==1) return pentA_raw((SHARED_EDGE+2)%5) - mid;
+  else if (j==2) return pentA_raw((SHARED_EDGE+3)%5) - mid;
+  else if (j==3) return pentA_raw((SHARED_EDGE+4)%5) - mid;
+  else if (j==4) return pentA_raw( SHARED_EDGE      ) - mid;
+  else if (j==5) return pentB_raw((SHARED_EDGE+4)%5) - mid;
+  else if (j==6) return pentB_raw((SHARED_EDGE+3)%5) - mid;
+  else           return pentB_raw((SHARED_EDGE+2)%5) - mid; // j==7
+}
+
+// Use GLOBAL arrays (WebGL-friendly) instead of array params
+vec2  gV[OCT_N];
+vec2  gE[OCT_N];
+float gL[OCT_N];
+vec2  gNin2[OCT_N];
+
+void buildOctagon() {
+  for (int i=0;i<OCT_N;i++) gV[i] = octV(i);
+  for (int i=0;i<OCT_N;i++) {
+    vec2 a = gV[i], b = gV[(i+1)%OCT_N];
+    vec2 e = b - a;
+    gE[i]    = e;
+    gL[i]    = length(e);
+    gNin2[i] = normalize(vec2(-e.y, e.x)); // CCW interior
+  }
+}
+int pairForEdge(int i) {
+  vec2 ei = normalize(gE[i]); float Li=gL[i];
+  float best=1e9; int bestJ=i;
+  for (int j=0;j<OCT_N;j++) if (j!=i){
+    vec2 ej = normalize(gE[j]); float Lj=gL[j];
+    float score = abs(Li-Lj) + abs(dot(ei,ej) + 1.0); // same length, opposite dir
+    if (score<best){ best=score; bestJ=j; }
+  }
+  return bestJ;
+}
+
+// --- helpers for cap footprint test
+float edgeDist2D_g(vec2 p){
+  float dmin = 1e19;
+  for (int i=0;i<OCT_N;i++){
+    vec2 a = gV[i], e = gE[i];
+    float t = clamp(dot(p - a, e)/dot(e,e), 0.0, 1.0);
+    vec2 c = a + t*e;
+    dmin = min(dmin, length(p - c));
+  }
+  return dmin;
+}
+bool insideOct_g(vec2 p){
+  bool inside=false;
+  vec2 v0=gV[OCT_N-1];
+  for (int i=0;i<OCT_N;i++){
+    vec2 v1=gV[i];
+    bool cond=((v0.y>p.y)!=(v1.y>p.y));
+    if (cond){
+      float xint=(v1.x-v0.x)*(p.y-v0.y)/(v1.y-v0.y)+v0.x;
+      if (p.x<xint) inside=!inside;
+    }
+    v0=v1;
+  }
+  return inside;
+}
+bool insideWithBand_g(vec2 p, float band){
+  return insideOct_g(p) || (edgeDist2D_g(p) <= band);
+}
+
+// -------------------- inner cube (analytic OBB) --------------------
+bool hitCubeOBB(vec3 ro, vec3 rd, float halfSize,
+                out float tHit, out int faceIdx, out vec3 pLocal)
+{
+  vec3 roL = ro * g_rot;
+  vec3 rdL = rd * g_rot;
+
+  vec3 b = vec3(halfSize);
+  vec3 t0 = (-b - roL)/rdL;
+  vec3 t1 = ( b - roL)/rdL;
+  vec3 tmin=min(t0,t1), tmax=max(t0,t1);
+  float tN = max(tmin.x, max(tmin.y, tmin.z));
+  float tF = min(tmax.x, min(tmax.y, tmax.z));
+  if (tF < max(tN, 0.0)) return false;
+
+  tHit = max(tN, 0.0);
+  pLocal = roL + tHit*rdL;
+
+  vec3 a=abs(pLocal);
+  if (a.x>a.y && a.x>a.z) faceIdx=(pLocal.x>0.0)?0:1;
+  else if (a.y>a.z)       faceIdx=(pLocal.y>0.0)?2:3;
+  else                    faceIdx=(pLocal.z>0.0)?4:5;
+  return true;
+}
+vec3 cubeFaceColor(int faceIdx){
+  float hue=(float(faceIdx)+RAINBOW_ROT)/6.0;
+  return HSV2RGB(vec3(fract(hue), RAINBOW_SAT, RAINBOW_VAL));
+}
+
+// -------------------- one ray (caps identified) --------------------
+vec3 traceRay(vec3 roW, vec3 rdW)
+{
+  buildOctagon();
+
+  // World -> local space (uniform scaling and rotation)
+  vec3 roL = (roW * g_rot) / poly_zoom;
+  vec3 rdL = (rdW * g_rot) / poly_zoom;
+  mat3 Rinv = transpose3(g_rot);
+
+  vec3 accum = vec3(0.0);
+
+  float tAccum = 0.0;
+  const int MAX_STEPS = 64;
+  float sideSlack = SIDE_S_EPS();
+  float push      = PUSH_EPS();
+  float capBand   = CAP_BAND();
+  float capBias   = CAP_BIAS();
+
+  float sE = 0.0; // stores edge param for teleport pairing
+
+  for (int step=0; step<MAX_STEPS; ++step)
+  {
+    // --- Next cap candidates (in local)
+    float tTop = 1e19, tBot = 1e19;
+    int   capSign = 0;
+    if (abs(rdL.y) > 1.0e-8) {
+      float tCand;
+      tCand = ( H_HALF - roL.y)/rdL.y;
+      if (tCand > 1.0e-6) {
+        vec3 p = roL + tCand*rdL;
+        if (insideWithBand_g(p.xz, capBand)) { tTop = tCand; }
+      }
+      tCand = (-H_HALF - roL.y)/rdL.y;
+      if (tCand > 1.0e-6) {
+        vec3 p = roL + tCand*rdL;
+        if (insideWithBand_g(p.xz, capBand)) { tBot = tCand; }
+      }
+      if (tTop < tBot) capSign = +1; else capSign = -1; // +1 = top, -1 = bottom
+    }
+    float tCap = min(tTop, tBot);
+
+    // --- Next side candidate (closest valid)
+    float tEdge = 1.0e19; int ei = -1;
+    for (int i=0;i<OCT_N;i++){
+      vec2 a = gV[i], e = gE[i];
+      float denom = cross2(rdL.xz, e);
+      if (abs(denom) < 1.0e-6) continue;
+      float t = cross2(a - roL.xz, e) / denom;
+      float s = cross2(a - roL.xz, rdL.xz) / denom;
+      if (t > 1.0e-6 && s >= -sideSlack && s <= 1.0 + sideSlack) {
+        float yAt = roL.y + t*rdL.y;
+        if (yAt >= -H_HALF && yAt <= H_HALF) {
+          if (t < tEdge) { tEdge = t; ei = i; sE = clamp(s,0.0,1.0); }
+        }
+      }
+    }
+
+    // --- If there’s no boundary event at all, we’re done
+    if (ei < 0 && tCap >= 1.0e18) {
+      return accum + renderEnv(roW, rdW);
+    }
+
+    // --- Choose the next event (caps get a tiny priority when nearly equal)
+    bool takeCap = (tCap < 1.0e18) && (tCap - capBias < tEdge);
+    float tNext  = takeCap ? tCap : tEdge;
+
+    // --- Check inner cube BEFORE the boundary event
+    float tCube; int faceIdx; vec3 pLoc;
+    bool hitCube = hitCubeOBB(roW, rdW, inner_sphere, tCube, faceIdx, pLoc);
+    if (hitCube && tCube >= 0.0 && tCube < tAccum + tNext) {
+      vec3 nL;
+      if      (faceIdx==0) nL=vec3( 1,0,0);
+      else if (faceIdx==1) nL=vec3(-1,0,0);
+      else if (faceIdx==2) nL=vec3(0, 1,0);
+      else if (faceIdx==3) nL=vec3(0,-1,0);
+      else if (faceIdx==4) nL=vec3(0,0, 1);
+      else                 nL=vec3(0,0,-1);
+      vec3 nW = normalize(nL * Rinv);
+      float lam = clamp(dot(nW, sunDir), 0.0, 1.0);
+      vec3 cubeCol = (0.25 + 0.75*lam) * cubeFaceColor(faceIdx);
+      return accum + cubeCol;
+    }
+
+    // --- Process the chosen boundary event
+    if (takeCap) {
+      // CAP SHEEN (glossy hint)
+      vec3 hitL = roL + tCap*rdL;
+      vec3 hitW = (hitL * poly_zoom) * Rinv;
+
+      vec3 nLocal = vec3(0.0, float(capSign), 0.0);
+      vec3 nW     = normalize(nLocal * Rinv);
+      if (dot(nW, rdW) > 0.0) nW = -nW;
+
+      float NoV = abs(dot(nW, -rdW));
+      float F   = F0 + (1.0 - F0)*pow(1.0 - NoV, 5.0);
+      vec3 rdir = reflect(rdW, nW);
+      vec3 envR = renderEnv(hitW + 0.002*nW, rdir);
+      vec3 capSpec = CAP_SPEC_GAIN * F * envR;
+      capSpec = mix(capSpec, capSpec * CAP_TINT_COLOR, CAP_SPEC_TINT);
+      accum += capSpec;
+
+      // IDENTIFY top <-> bottom by translation
+      if (CAP_IDENTIFY) {
+        float yDest = hitL.y - 2.0 * float(capSign) * H_HALF; // +H -> -H or vice versa
+        vec2  shift = float(capSign) * CAP_SHIFT_XZ;           // top->bottom add; bottom->top subtract
+        roL = vec3(hitL.x + shift.x, yDest, hitL.z + shift.y);
+        roL += vec3(0.0, PUSH_EPS()*float(capSign), 0.0);      // nudge away from seam
+      } else {
+        roL = hitL + push * rdL;
+      }
+
+      roW = (roL * poly_zoom) * Rinv;
+      tAccum += tCap;
+      continue;
+    }
+
+    // SIDE SHEEN + TELEPORT
+    vec3 hitL = roL + tEdge*rdL;
+    vec3 hitW = (hitL * poly_zoom) * Rinv;
+
+    vec3 nLocal = normalize(vec3(gNin2[ei].x, 0.0, gNin2[ei].y));
+    vec3 nW = normalize(nLocal * Rinv);
+    if (dot(nW, rdW) > 0.0) nW = -nW;
+
+    float NoV = abs(dot(nW, -rdW));
+    float F   = F0 + (1.0 - F0)*pow(1.0 - NoV, 5.0);
+
+    vec3 rdir = reflect(rdW, nW);
+    vec3 envR = renderEnv(hitW + 0.002*nW, rdir);
+    vec3 wallSpec = WALL_SPEC_GAIN * F * envR;
+    wallSpec = mix(wallSpec, wallSpec * WALL_TINT_COLOR, WALL_SPEC_TINT);
+    accum += wallSpec;
+
+    // Teleport across the paired side with the same param s
+    roL = hitL;
+    int ej = pairForEdge(ei);
+    vec2 Ei = normalize(gE[ei]), Ej = normalize(gE[ej]);
+    bool reversed = dot(Ei, Ej) < 0.0;
+    float sJ = reversed ? (1.0 - sE) : sE;
+
+    vec2 Aj = gV[ej]; vec2 EjVec = gE[ej];
+    vec2 Nj = normalize(vec2(-EjVec.y, EjVec.x)); // inward of paired side
+    roL.xz = Aj + sJ * EjVec;
+    roL.xz += Nj * PUSH_EPS(); // push a few pixels inside; y unchanged
+
+    roW = (roL * poly_zoom) * Rinv;
+    tAccum += tEdge;
+  }
+
+  // Safety fallback after too many events
+  return accum + renderEnv(roW + 1.0*rdW, rdW);
+}
+
+// -------------------- frame --------------------
+vec3 effect(vec2 p)
+{
+  const float fov = 2.0;
+  const vec3 up = vec3(0., 1., 0.);
+  const vec3 la = vec3(0.0);
+
+  vec3 ww = normalize(normalize(la - rayOrigin));
+  vec3 uu = normalize(cross(up, ww));
+  vec3 vv = cross(ww, uu);
+
+  vec3 rd = normalize(-p.x*uu + p.y*vv + fov*ww);
+
+  vec3 col = traceRay(rayOrigin, rd);
+
+  col -= 2.0e-2 * vec3(2.,3.,1.) * (length(p) + 0.25);
+  col  = aces_approx(col);
+  col  = sqrt(col);
+  return col;
+}
+
+void render(out vec4 fragColor, in vec2 fragCoord)
+{
+  vec2 q = fragCoord/RESOLUTION.xy;
+  vec2 p = -1. + 2. * q;
+  p.x *= RESOLUTION.x/RESOLUTION.y;
+
+  // Mouse-driven rotation (natural)
+  vec2 m  = (uMouse.x + uMouse.y > 0.0) ? uMouse.xy : 0.5*RESOLUTION.xy;
+  vec2 mn = clamp(m/RESOLUTION.xy, 0.0, 1.0);
+  float yaw   = (mn.x - 0.5) * TAU;
+  float pitch = (0.5 - mn.y) * (PI * 0.95);
+
+  vec3 d = normalize(vec3( sin(yaw)*cos(pitch),
+                           sin(pitch),
+                           cos(yaw)*cos(pitch) ));
+  vec3 zref = vec3(0,0,1);
+  if (dot(d, zref) < -0.9995) zref = vec3(0,1,0);
+  g_rot = rot(d, zref);
+
+  vec3 col = effect(p);
+  fragColor = vec4(col, 1.0);
+}
+
+void main()
+{
+  vec2 fragCoord = vUv * RESOLUTION;
+  vec4 fragColor;
+  render(fragColor, fragCoord);
+  gl_FragColor = fragColor;
+}
+`;
+
+/* -------------------------
+   Material & Mesh
+------------------------- */
+const uniforms = {
+  uTime:       { value: 0 },
+  uResolution: { value: new THREE.Vector2(window.innerWidth * DPR, window.innerHeight * DPR) },
+  uMouse:      { value: new THREE.Vector4(0, 0, 0, 0) }
+};
+
+const material = new THREE.ShaderMaterial({
+  vertexShader,
+  fragmentShader,
+  uniforms,
+  depthWrite: false
+});
+
+scene.add(new THREE.Mesh(quad, material));
+
+/* -------------------------
+   Mouse (bottom-left origin)
+------------------------- */
+let mouseDown = false;
+function setMouseFromEvent(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * DPR;
+  const y = (rect.bottom - e.clientY) * DPR;
+  uniforms.uMouse.value.set(x, y, mouseDown ? 1 : 0, 0);
+}
+renderer.domElement.addEventListener("pointerdown", e => { mouseDown = true; setMouseFromEvent(e); });
+renderer.domElement.addEventListener("pointermove", e => { setMouseFromEvent(e); });
+window.addEventListener("pointerup", () => { mouseDown = false; });
+
+/* -------------------------
+   Resize
+------------------------- */
+function onResize() {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  uniforms.uResolution.value.set(window.innerWidth * DPR, window.innerHeight * DPR);
+}
+window.addEventListener("resize", onResize);
+
+/* -------------------------
+   Animate
+------------------------- */
+const clock = new THREE.Clock();
+function tick() {
+  uniforms.uTime.value = clock.getElapsedTime();
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>
